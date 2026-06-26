@@ -6,8 +6,9 @@
   if (!SEED) { document.body.innerHTML = "<p style='padding:20px'>seed.js 없음. import_xlsx.py 를 실행하세요.</p>"; return; }
 
   const LAYERS = ["횡주", "입상", "바닥"];
-  const STCOLOR = {}, STLABEL = {}, STLAYERS = {}, STSEL = {};
-  SEED.legend.forEach(l => { STCOLOR[l.key] = l.color; STLABEL[l.key] = l.label; STLAYERS[l.key] = l.layers || LAYERS; STSEL[l.key] = !!l.sel; });
+  const STCOLOR = {}, STLABEL = {}, STLAYERS = {}, STSEL = {}, STAUTO = {};
+  SEED.legend.forEach(l => { STCOLOR[l.key] = l.color; STLABEL[l.key] = l.label; STLAYERS[l.key] = l.layers || LAYERS; STSEL[l.key] = !!l.sel; STAUTO[l.key] = !!l.auto; });
+  function escAttr(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
   const DUCT_DONE = new Set(["install_done", "predrill_duct", "today_install"]);
   const FLOOR_DONE = new Set(["drill_done", "predrill_floor", "today_drill"]);
   const WORK_EXCLUDE = new Set(["none", "no_beam"]);
@@ -181,14 +182,12 @@
     const pr = document.createElement("tr"); pr.className = "part-row";
     pr.innerHTML = `<th class="corner c-floor">덕트</th><th class="corner c-layer">성상</th>`;
     parts.forEach(p => {
-      const th = document.createElement("th"); th.dataset.z = zoneIdx[p.zone];
+      const th = document.createElement("th"); th.dataset.z = zoneIdx[p.zone]; th.dataset.part = p.id;
       th.title = `${p.part_no} · ${p.seong || ""}${p.size ? " · " + p.size : ""}${p.yeolsu ? " · " + p.yeolsu : ""}${p.to ? " · TO " + p.to : ""}`;
-      const hasN = !!store.note("lm:" + p.id);
       th.innerHTML =
-        `<span class="pn">${p.part_no}</span>` +
-        `<span class="sg" title="${p.seong || ""}">${p.seong || ""}</span>` +
-        `<span class="ys">${p.size || ""}</span>` +
-        `<span class="lm ${hasN ? "has-dot" : ""}" data-linememo="${p.id}">📝</span>`;
+        `<span class="pn">${escAttr(p.part_no)}</span>` +
+        `<span class="sz">${escAttr(p.size || "")}</span>` +
+        `<span class="sg" title="${escAttr(p.seong || "")}">${escAttr(p.seong || "")}</span>`;
       pr.appendChild(th);
     });
     thead.appendChild(pr);
@@ -218,7 +217,7 @@
         const ll = document.createElement("td"); ll.className = "rl layer lyr-" + (layer === "횡주" ? "h" : layer === "입상" ? "v" : "b"); ll.textContent = layer; tr.appendChild(ll);
         parts.forEach(p => {
           const k = keyOf(p.id, floor, layer), sc = seedCell[k];
-          const td = document.createElement("td"); td.className = "c"; td.dataset.key = k;
+          const td = document.createElement("td"); td.className = "c"; td.dataset.key = k; td.dataset.part = p.id;
           if (!sc) { td.classList.add("absent"); td.dataset.key = ""; tr.appendChild(td); return; }
           paintCell(td, k); tr.appendChild(td);
         });
@@ -229,7 +228,7 @@
     // 타공현황(바닥 완료 카운트)
     const cr = document.createElement("tr"); cr.className = "count";
     cr.innerHTML = `<td class="rl floor" colspan="2">타공<br>현황</td>`;
-    parts.forEach(p => { const td = document.createElement("td"); td.dataset.countPart = p.id; setCount(td, p.id); cr.appendChild(td); });
+    parts.forEach(p => { const td = document.createElement("td"); td.dataset.countPart = p.id; td.dataset.part = p.id; setCount(td, p.id); cr.appendChild(td); });
     tbody.appendChild(cr);
 
     // 하부접점
@@ -244,14 +243,21 @@
     const tr = document.createElement("tr"); tr.className = "contact " + (kind === "lower" ? "lower" : "upper");
     tr.innerHTML = `<td class="rl floor" colspan="2">${label}</td>`;
     parts.forEach(p => {
-      const td = document.createElement("td"); td.className = "c contact-c";
-      td.dataset.contact = (kind === "upper" ? "uc:" : "dc:") + p.id;
-      const v = store.note((kind === "upper" ? "uc:" : "dc:") + p.id);
-      td.textContent = v ? (v.length > 6 ? v.slice(0, 6) + "…" : v) : "";
-      if (v) td.title = v;
+      const td = document.createElement("td"); td.className = "c contact-c"; td.dataset.part = p.id;
+      const pre = kind === "upper" ? "uc:" : "dc:";
+      td.dataset.contact = pre + p.id;
+      paintContact(td, kind === "upper", p.id);
       tr.appendChild(td);
     });
     return tr;
+  }
+  // 접점 칸: 완료(초록)/미완료 + 텍스트
+  function paintContact(td, upper, pid) {
+    const v = store.note((upper ? "uc:" : "dc:") + pid);
+    const done = store.note((upper ? "ucz:" : "dcz:") + pid) === "1";
+    td.classList.toggle("c-done", done);
+    td.textContent = v ? (v.length > 6 ? v.slice(0, 6) + "…" : v) : (done ? "✓" : "");
+    td.title = v ? (done ? "[완료] " + v : v) : (done ? "완료" : "");
   }
 
   function effColor(c) {
@@ -261,17 +267,13 @@
     return STCOLOR[st] || "#fff";
   }
   function paintCell(td, k) {
-    const c = store.cell(k), st = c.status;
-    const [pid, floor] = k.split("|");
+    const c = store.cell(k);
+    let st = c.status; if (st === "no_beam") st = "none";   // 횡주간없음 → 해당없음으로 통일(흰색)
     td.className = "c"; td.dataset.key = k;
-    if (st === "no_beam") {
-      td.classList.add("nobeam"); td.innerHTML = "";
-      const ip = store.cell(keyOf(pid, floor, "입상"));   // 횡주 없음 → 입상색 따라감
-      td.style.background = ip && seedCell[keyOf(pid, floor, "입상")] ? effColor(ip) : "#f0f1f3";
-      return;
-    }
-    td.style.background = effColor(c);
-    td.innerHTML = (c.qd != null && c.qd !== "") ? `<span class="q">${c.qd}</span>` : "";
+    td.style.background = effColor({ status: st, d: c.d });
+    td.innerHTML = (st !== "none" && c.qd != null && c.qd !== "") ? `<span class="q">${c.qd}</span>` : "";
+    const tm = store.note("wt:" + k);   // 작업팀(선택) → 툴팁
+    td.title = tm ? "작업팀: " + tm : "";
     if (diffOn && c.d === TODAY && DIFF_STATUS.has(st)) td.classList.add("diffmark");
   }
 
@@ -290,23 +292,44 @@
     td.className = ""; if (t && d === t) td.className = "full"; else if (t && d === 0) td.className = "lo";
   }
 
+  // 범례 표(색·라벨)와 갯수를 한 칸에 통합 + 감추기. 진행바는 기설치/신규 구분.
+  let legendHidden = localStorage.getItem("ds_legend_hidden") === "1";
+  const LEGEND_ORDER = ["not_installed", "install_done", "drill_done", "predrill_duct", "predrill_floor", "today_install", "today_drill", "etc_interf", "scaffold_interf", "none"];
   function buildStatusStrip(parts) {
     const strip = document.getElementById("statusStrip"); if (!strip) return;
-    const cnt = {}; let dT = 0, dD = 0, fT = 0, fD = 0;
+    const cnt = {}; let dT = 0, fT = 0;
     parts.forEach(p => SEED.floors.forEach(f => LAYERS.forEach(L => {
       const k = keyOf(p.id, f, L); if (!seedCell[k]) return;
-      const st = store.cell(k).status; cnt[st] = (cnt[st] || 0) + 1;
+      const c = store.cell(k); let st = c.status; if (st === "no_beam") st = "none"; cnt[st] = (cnt[st] || 0) + 1;
+      if (st === "install_done" && c.d === TODAY) cnt.today_install = (cnt.today_install || 0) + 1;
+      if (st === "drill_done" && c.d === TODAY) cnt.today_drill = (cnt.today_drill || 0) + 1;
       if (WORK_EXCLUDE.has(st)) return;
-      if (L === "바닥") { fT++; if (FLOOR_DONE.has(st)) fD++; }
-      else { dT++; if (DUCT_DONE.has(st)) dD++; }
+      if (L === "바닥") fT++; else dT++;
     })));
     const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
-    const chip = key => cnt[key] ? `<span class="chip"><span class="sw" style="background:${key === "none" ? "#fff" : STCOLOR[key]}"></span>${STLABEL[key]} <b>${cnt[key]}</b></span>` : "";
+    // 기설치(pre)와 금번 신규완료(new)를 진행바에서 색으로 구분
+    const ductPre = cnt.predrill_duct || 0, ductNew = cnt.install_done || 0;
+    const floorPre = cnt.predrill_floor || 0, floorNew = cnt.drill_done || 0;
+    const prog = (label, cls, pre, nw, tot) =>
+      `<div class="prog"><span class="pl">${label}</span>` +
+      `<div class="prog-bar ${cls}" title="기설치 ${pre} · 신규 ${nw} / 전체 ${tot}"><i class="seg-pre" style="width:${pct(pre, tot)}%"></i><i class="seg-new" style="width:${pct(nw, tot)}%"></i></div>` +
+      `<span class="prog-num">${pct(pre + nw, tot)}% <b>${pre + nw}</b>/${tot}<em> 기${pre}·신${nw}</em></span></div>`;
+    const chip = key => {
+      const n = cnt[key] || 0;
+      const sw = key === "no_beam" ? `<span class="sw xbeam"></span>` : `<span class="sw" style="background:${key === "none" ? "#fff" : STCOLOR[key]}"></span>`;
+      return `<span class="chip"><span class="sw-wrap">${sw}</span>${STLABEL[key]}${STAUTO[key] ? ` <em class="auto-tag">자동</em>` : ""} <b>${n}</b></span>`;
+    };
     strip.innerHTML =
-      `<div class="prog"><span class="pl">덕트설치</span><div class="prog-bar duct"><i style="width:${pct(dD, dT)}%"></i></div><span class="prog-num">${pct(dD, dT)}% (${dD}/${dT})</span></div>` +
-      `<div class="prog"><span class="pl">바닥타공</span><div class="prog-bar floor"><i style="width:${pct(fD, fT)}%"></i></div><span class="prog-num">${pct(fD, fT)}% (${fD}/${fT})</span></div>` +
+      `<button id="legendToggle" class="legend-toggle" title="범례·갯수 접기/펴기">${legendHidden ? "▸" : "▾"} 범례·갯수</button>` +
+      prog("덕트설치", "duct", ductPre, ductNew, dT) +
+      prog("바닥타공", "floor", floorPre, floorNew, fT) +
       `<span class="sep"></span>` +
-      ["install_done", "predrill_duct", "predrill_floor", "drill_done", "today_install", "today_drill", "not_installed", "etc_interf", "scaffold_interf"].map(chip).join("");
+      `<div class="chips ${legendHidden ? "hidden" : ""}">` + LEGEND_ORDER.map(chip).join("") + `</div>`;
+    document.getElementById("legendToggle").onclick = () => {
+      legendHidden = !legendHidden; localStorage.setItem("ds_legend_hidden", legendHidden ? "1" : "0");
+      strip.querySelector(".chips").classList.toggle("hidden", legendHidden);
+      document.getElementById("legendToggle").textContent = (legendHidden ? "▸" : "▾") + " 범례·갯수";
+    };
   }
 
   function cssEsc(s) { return s.replace(/["\\]/g, "\\$&"); }
@@ -319,8 +342,8 @@
   /* ---------- (라인+층) 통합 편집 ---------- */
   const editorModal = document.getElementById("editorModal");
   let edPart = null, edFloor = null;
-  // 레이어별 편집 옵션
-  const optsFor = layer => SEED.legend.filter(l => l.sel && (l.layers || LAYERS).includes(layer));
+  // 레이어별 편집 옵션 — '해당없음(none)'을 모든 레이어 공통 옵션으로 포함
+  const optsFor = layer => SEED.legend.filter(l => (l.sel || l.key === "none") && (l.layers || LAYERS).includes(layer));
   const hasLayer = (pid, f, l) => !!seedCell[keyOf(pid, f, l)];
 
   function openEditor(pid, floor) {
@@ -345,30 +368,26 @@
   function renderEditor() {
     const wrap = document.getElementById("edLayers"); wrap.innerHTML = "";
     const defs = [
-      { layer: "횡주", toggle: true, offKey: "no_beam", offLabel: "없으면 대각선(입상색 따름)" },
-      { layer: "입상", toggle: false },
-      { layer: "바닥", toggle: true, offKey: "none", offLabel: "해당없음", title: "바닥 (타공)" },
+      { layer: "횡주" },
+      { layer: "입상" },
+      { layer: "바닥", title: "바닥 (타공)" },
     ];
     defs.forEach(def => {
       if (!hasLayer(edPart, edFloor, def.layer)) return;
-      const k = keyOf(edPart, edFloor, def.layer), cur = store.cell(k).status;
+      const k = keyOf(edPart, edFloor, def.layer);
+      let cur = store.cell(k).status; if (cur === "no_beam") cur = "none";   // 횡주간없음 → 해당없음으로 통일
       const row = document.createElement("div"); row.className = "ed-row"; row.dataset.layer = def.layer;
-      const off = def.toggle && cur === def.offKey;
-      let head = `<div class="ed-rh"><span class="lname">${def.title || def.layer}</span>`;
-      if (def.toggle) head += `<span class="seg"><button data-seg="on" class="${off ? "" : "on"}">있음</button><button data-seg="off" class="${off ? "on" : ""}">없음</button></span>`;
-      head += `</div>`;
-      let body;
-      if (off) body = `<div class="ed-none">${def.offLabel}</div>`;
-      else body = `<div class="ed-chips">` + optsFor(def.layer).map(l =>
+      let body = `<div class="ed-rh"><span class="lname">${def.title || def.layer}</span></div>`;
+      body += `<div class="ed-chips">` + optsFor(def.layer).map(l =>
         `<button class="chip ${cur === l.key ? "cur" : ""}" data-status="${l.key}"><span class="sw" style="background:${l.color}"></span>${l.label}</button>`).join("") + `</div>`;
-      row.innerHTML = head + body;
-      // 토글
-      row.querySelectorAll("[data-seg]").forEach(b => b.onclick = () => {
-        if (b.dataset.seg === "off") setLayer(def.layer, def.offKey);
-        else { const c = store.cell(k).status; setLayer(def.layer, (c === def.offKey || WORK_EXCLUDE.has(c)) ? "not_installed" : c); }
-      });
+      // 작업팀(선택) — 덕트설치·타공·횡주 누가 했는지
+      body += `<div class="ed-team"><label>작업팀 <span class="opt">(선택)</span></label><input class="team-inp" value="${escAttr(store.note("wt:" + k))}" placeholder="예: ○○설비팀" /></div>`;
+      row.innerHTML = body;
       // 상태칩
       row.querySelectorAll(".chip").forEach(b => b.onclick = () => setLayer(def.layer, b.dataset.status));
+      // 작업팀 입력
+      const ti = row.querySelector(".team-inp");
+      if (ti) ti.onchange = () => store.setNote("wt:" + k, ti.value.trim(), meta());
       wrap.appendChild(row);
     });
     updatePreview();
@@ -385,15 +404,10 @@
       if (!hasLayer(edPart, edFloor, L)) { wrap.style.display = "none"; return; }
       wrap.style.display = "flex";
       const c = store.cell(keyOf(edPart, edFloor, L));
+      const st = c.status === "no_beam" ? "none" : c.status;   // 횡주간없음 → 해당없음
       wrap.classList.remove("beam-none");
-      if (L === "횡주" && c.status === "no_beam") {
-        const ip = store.cell(keyOf(edPart, edFloor, "입상"));
-        wrap.style.background = hasLayer(edPart, edFloor, "입상") ? effColor(ip) : "#fff";
-        wrap.classList.add("beam-none"); el.textContent = "";
-      } else {
-        wrap.style.background = effColor(c);
-        el.textContent = (L === "입상" && c.qd != null) ? c.qd : "";
-      }
+      wrap.style.background = effColor({ status: st, d: c.d });
+      el.textContent = (L === "입상" && st !== "none" && c.qd != null) ? c.qd : "";
     });
   }
 
@@ -411,24 +425,53 @@
   }
   const photoInput = document.getElementById("photoInput");
   document.getElementById("photoBtn").onclick = () => photoInput.click();
-  photoInput.onchange = async () => {
-    const pk = "ph:" + edPart + ":" + edFloor, files = [...photoInput.files];
-    photoInput.value = "";
+  async function uploadPhotos(fileList) {
+    if (!edPart) return;
+    const pk = "ph:" + edPart + ":" + edFloor;
+    const files = [...fileList].filter(f => f && f.type && f.type.indexOf("image/") === 0);
+    if (!files.length) { toast("이미지 파일만 가능합니다"); return; }
     for (const f of files) { try { toast("사진 업로드 중..."); await store.addPhoto(pk, f, meta()); } catch (e) { toast("업로드 실패: " + e.message); } }
     renderPhotos();
-  };
+  }
+  photoInput.onchange = () => { const fs = [...photoInput.files]; photoInput.value = ""; uploadPhotos(fs); };
+  // 드래그&드롭
+  const photoDrop = document.getElementById("photoDrop");
+  ["dragenter", "dragover"].forEach(ev => photoDrop.addEventListener(ev, e => { e.preventDefault(); photoDrop.classList.add("dragging"); }));
+  ["dragleave", "dragend"].forEach(ev => photoDrop.addEventListener(ev, e => { e.preventDefault(); photoDrop.classList.remove("dragging"); }));
+  photoDrop.addEventListener("drop", e => { e.preventDefault(); photoDrop.classList.remove("dragging"); if (e.dataTransfer && e.dataTransfer.files.length) uploadPhotos(e.dataTransfer.files); });
+  // 붙여넣기(Ctrl+V) — 편집모달 열려있을 때만
+  document.addEventListener("paste", e => {
+    if (!edPart || editorModal.classList.contains("hidden")) return;
+    const items = (e.clipboardData && e.clipboardData.items) || [];
+    const files = [];
+    for (const it of items) { if (it.kind === "file") { const f = it.getAsFile(); if (f && f.type.indexOf("image/") === 0) files.push(f); } }
+    if (files.length) { e.preventDefault(); uploadPhotos(files); }
+  });
 
   /* ---------- 텍스트(메모/접점) ---------- */
-  let textKey = null;
+  let textKey = null, textDoneKey = null, textDone = false;
   const textModal = document.getElementById("textModal");
-  function openText(key, title) {
+  const textStatusEl = document.getElementById("textStatus");
+  function paintTextSeg() { textStatusEl.querySelectorAll("[data-cstat]").forEach(b => b.classList.toggle("on", (b.dataset.cstat === "done") === textDone)); }
+  textStatusEl.querySelectorAll("[data-cstat]").forEach(b => b.onclick = () => { textDone = b.dataset.cstat === "done"; paintTextSeg(); });
+  function openText(key, title, opts) {
     if (!USER) { openName(); return; }
     textKey = key; document.getElementById("textTitle").textContent = title;
     document.getElementById("textArea").value = store.note(key);
+    if (opts && opts.doneKey) { textDoneKey = opts.doneKey; textDone = store.note(opts.doneKey) === "1"; textStatusEl.classList.remove("hidden"); paintTextSeg(); }
+    else { textDoneKey = null; textStatusEl.classList.add("hidden"); }
     textModal.classList.remove("hidden"); setTimeout(() => document.getElementById("textArea").focus(), 50);
   }
-  document.getElementById("textSave").onclick = () => { store.setNote(textKey, document.getElementById("textArea").value.trim(), meta()); closeModals(); };
-  document.getElementById("textDelete").onclick = () => { store.setNote(textKey, "", meta()); closeModals(); };
+  document.getElementById("textSave").onclick = () => {
+    store.setNote(textKey, document.getElementById("textArea").value.trim(), meta());
+    if (textDoneKey) store.setNote(textDoneKey, textDone ? "1" : "", meta());
+    closeModals();
+  };
+  document.getElementById("textDelete").onclick = () => {
+    store.setNote(textKey, "", meta());
+    if (textDoneKey) store.setNote(textDoneKey, "", meta());
+    closeModals();
+  };
 
   /* ---------- 이름/팀 ---------- */
   const nameModal = document.getElementById("nameModal");
@@ -441,28 +484,29 @@
   };
   document.getElementById("userBtn").onclick = () => { if (USER) { document.getElementById("nameInput").value = USER.name; document.getElementById("teamInput").value = USER.team || ""; } openName(); };
 
+  const dashModal = document.getElementById("dashModal");
   function closeModals() {
-    [editorModal, textModal, nameModal].forEach(m => m.classList.add("hidden"));
+    [editorModal, textModal, nameModal, dashModal].forEach(m => m.classList.add("hidden"));
     gridEl.querySelectorAll("td.sel").forEach(e => e.classList.remove("sel")); textKey = null; edPart = null;
   }
   document.querySelectorAll("[data-close]").forEach(b => b.onclick = closeModals);
-  [editorModal, textModal].forEach(m => m.addEventListener("click", e => { if (e.target === m) closeModals(); }));
+  [editorModal, textModal, dashModal].forEach(m => m.addEventListener("click", e => { if (e.target === m) closeModals(); }));
 
   /* ---------- 격자 클릭 ---------- */
   gridEl.addEventListener("click", e => {
-    const lm = e.target.closest("[data-linememo]"); if (lm) { const p = partById[lm.dataset.linememo]; openText("lm:" + lm.dataset.linememo, `${p.part_no} 라인 메모`); return; }
     const mb = e.target.closest("[data-memo]"); if (mb) { openText("fm:" + (searchQ ? "검색" : currentZone) + ":" + mb.dataset.memo, `${searchQ ? "" : currentZone + " "}${mb.dataset.memo} 층 메모`); return; }
-    const ct = e.target.closest("[data-contact]"); if (ct) { const kind = ct.dataset.contact.startsWith("uc") ? "상부접점" : "하부접점"; const pid = ct.dataset.contact.split(":")[1]; openText(ct.dataset.contact, `${partById[pid].part_no} ${kind}`); return; }
+    const ct = e.target.closest("[data-contact]"); if (ct) { const up = ct.dataset.contact.indexOf("uc:") === 0; const pid = ct.dataset.contact.split(":")[1]; openText(ct.dataset.contact, `${partById[pid].part_no} ${up ? "상부접점" : "하부접점"}`, { doneKey: (up ? "ucz:" : "dcz:") + pid }); return; }
     const td = e.target.closest("td.c"); if (td && td.dataset.key) { const [pid, floor] = td.dataset.key.split("|"); openEditor(pid, floor); }
   });
 
-  /* ---------- 층 hover 강조 ---------- */
+  /* ---------- hover 십자 강조(층 행 + 라인 열) — 엑셀 포커스셀 ---------- */
   gridEl.addEventListener("mouseover", e => {
-    const td = e.target.closest("td.c[data-key]"); if (!td) return;
-    const floor = td.dataset.key.split("|")[1];
-    if (gridEl.dataset.hl === floor) return; hlFloor(floor);
+    const td = e.target.closest("td.c[data-key]"); if (!td || !td.dataset.key) { return; }
+    const [pid, floor] = td.dataset.key.split("|");
+    if (gridEl.dataset.hl === floor && gridEl.dataset.hp === pid) return;
+    hlFloor(floor); hlPart(pid);
   });
-  gridEl.addEventListener("mouseleave", () => hlFloor(null));
+  gridEl.addEventListener("mouseleave", () => { hlFloor(null); hlPart(null); });
   function hlFloor(floor) {
     gridEl.dataset.hl = floor || "";
     gridEl.querySelectorAll("tr.hlfloor").forEach(r => r.classList.remove("hlfloor"));
@@ -471,6 +515,12 @@
       const c = tr.querySelector("td.c[data-key]");
       if (c && c.dataset.key.split("|")[1] === floor) tr.classList.add("hlfloor");
     });
+  }
+  function hlPart(pid) {
+    gridEl.dataset.hp = pid || "";
+    gridEl.querySelectorAll(".hlpart").forEach(e => e.classList.remove("hlpart"));
+    if (!pid) return;
+    gridEl.querySelectorAll(`[data-part="${cssEsc(pid)}"]`).forEach(e => e.classList.add("hlpart"));
   }
 
   /* ---------- 구역 탭 ---------- */
@@ -510,15 +560,64 @@
     toast(diffOn ? `오늘(${TODAY}) 변경된 설치·간섭 칸 표시` : "전일대비 표시 끔");
   };
 
-  /* ---------- 범례 ---------- */
-  function buildLegend() {
-    const bar = document.getElementById("legendBar"); bar.innerHTML = "";
-    SEED.legend.forEach(l => {
-      const d = document.createElement("div"); d.className = "lg";
-      const sw = l.key === "no_beam" ? `<span class="sw xbeam"></span>` : `<span class="sw" style="background:${l.key === "none" ? "#fff" : l.color}"></span>`;
-      d.innerHTML = sw + l.label + (l.auto ? " <em class='auto-tag'>자동</em>" : ""); bar.appendChild(d);
-    });
+  /* ---------- 대시보드 ---------- */
+  function blankG() { return { pre: 0, nw: 0, today: 0, tot: 0 }; }
+  function statsFor(parts) {
+    const s = { duct: blankG(), floor: blankG(), etc: 0, scaffold: 0, notInst: 0, todayChg: 0 };
+    parts.forEach(p => SEED.floors.forEach(f => LAYERS.forEach(L => {
+      const k = keyOf(p.id, f, L); if (!seedCell[k]) return;
+      const c = store.cell(k), st = c.status;
+      if (st === "etc_interf") s.etc++; else if (st === "scaffold_interf") s.scaffold++;
+      if (c.d === TODAY && DIFF_STATUS.has(st)) s.todayChg++;
+      if (WORK_EXCLUDE.has(st)) return;
+      const g = L === "바닥" ? s.floor : s.duct; g.tot++;
+      if (st === "not_installed") s.notInst++;
+      if (L === "바닥") { if (st === "predrill_floor") g.pre++; else if (st === "drill_done") { g.nw++; if (c.d === TODAY) g.today++; } }
+      else { if (st === "predrill_duct") g.pre++; else if (st === "install_done") { g.nw++; if (c.d === TODAY) g.today++; } }
+    })));
+    return s;
   }
+  function statsForFloor(floor) {
+    const s = { duct: blankG(), floor: blankG() };
+    SEED.parts.forEach(p => LAYERS.forEach(L => {
+      const k = keyOf(p.id, floor, L); if (!seedCell[k]) return;
+      const st = store.cell(k).status; if (WORK_EXCLUDE.has(st)) return;
+      const g = L === "바닥" ? s.floor : s.duct; g.tot++;
+      if (L === "바닥") { if (st === "predrill_floor") g.pre++; else if (st === "drill_done") g.nw++; }
+      else { if (st === "predrill_duct") g.pre++; else if (st === "install_done") g.nw++; }
+    }));
+    return s;
+  }
+  const pctOf = (a, b) => b ? Math.round(a / b * 100) : 0;
+  const miniBar = (g, cls) => `<div class="db-bar ${cls}"><i class="seg-pre" style="width:${pctOf(g.pre, g.tot)}%"></i><i class="seg-new" style="width:${pctOf(g.nw, g.tot)}%"></i></div>`;
+  const rowCell = (g, cls) => `<div class="zc">${miniBar(g, cls)}<span class="zc-n">${pctOf(g.pre + g.nw, g.tot)}% <em>${g.pre + g.nw}/${g.tot}</em></span></div>`;
+  function openDash() {
+    const all = statsFor(SEED.parts);
+    document.getElementById("dashScope").textContent = "전체 현장 · 기준 " + (SEED.updated || "");
+    const card = (title, g, cls) => {
+      const done = g.pre + g.nw;
+      return `<div class="db-card"><div class="db-h">${title}</div>` +
+        `<div class="db-big">${pctOf(done, g.tot)}<span>%</span></div>` + miniBar(g, cls) +
+        `<div class="db-subn"><b>${done}</b> / ${g.tot} 칸</div>` +
+        `<div class="db-split"><span class="pre">기설치 ${g.pre}</span><span class="new">신규완료 ${g.nw}</span><span class="today">금일 ${g.today}</span></div></div>`;
+    };
+    let html = `<div class="db-cards">` + card("덕트 설치", all.duct, "duct") + card("바닥 타공", all.floor, "floor") + `</div>`;
+    html += `<div class="db-mini">` +
+      `<div class="db-m"><span class="db-m-n">${all.notInst}</span><span class="db-m-l">미설치 칸</span></div>` +
+      `<div class="db-m red"><span class="db-m-n">${all.etc}</span><span class="db-m-l">기타 간섭</span></div>` +
+      `<div class="db-m pink"><span class="db-m-n">${all.scaffold}</span><span class="db-m-l">비계 간섭</span></div>` +
+      `<div class="db-m amber"><span class="db-m-n">${all.todayChg}</span><span class="db-m-l">오늘 변경</span></div></div>`;
+    html += `<div class="db-sec">구역별 진행률 <span class="db-legend"><i class="lp"></i>기설치 <i class="ln"></i>신규완료</span></div>`;
+    html += `<table class="db-tbl"><thead><tr><th>구역</th><th>덕트설치</th><th>바닥타공</th></tr></thead><tbody>`;
+    SEED.zones.forEach(z => { const s = statsFor(partsByZone[z]); html += `<tr><td class="zname">${z}</td><td>${rowCell(s.duct, "duct")}</td><td>${rowCell(s.floor, "floor")}</td></tr>`; });
+    html += `</tbody></table>`;
+    html += `<div class="db-sec">층별 진행률</div><table class="db-tbl"><thead><tr><th>층</th><th>덕트설치</th><th>바닥타공</th></tr></thead><tbody>`;
+    SEED.floors.forEach(f => { const s = statsForFloor(f); html += `<tr><td class="zname">${f}</td><td>${rowCell(s.duct, "duct")}</td><td>${rowCell(s.floor, "floor")}</td></tr>`; });
+    html += `</tbody></table>`;
+    document.getElementById("dashBody").innerHTML = html;
+    dashModal.classList.remove("hidden");
+  }
+  document.getElementById("dashBtn").onclick = openDash;
 
   /* ---------- 줌(포인터 중심) ---------- */
   let cellPx = 30;
@@ -592,10 +691,13 @@
   store.onChange(k => {
     if (k.startsWith("note:")) {
       const nk = k.slice(5);
-      if (nk.startsWith("lm:")) { const el = gridEl.querySelector(`[data-linememo="${cssEsc(nk.slice(3))}"]`); if (el) el.className = "lm " + (store.note(nk) ? "has-dot" : ""); }
-      else if (nk.startsWith("uc:") || nk.startsWith("dc:")) { const el = gridEl.querySelector(`[data-contact="${cssEsc(nk)}"]`); if (el) { const v = store.note(nk); el.textContent = v ? (v.length > 6 ? v.slice(0, 6) + "…" : v) : ""; el.title = v || ""; } }
-      else if (nk.startsWith("fm:")) { const floor = nk.split(":")[2]; const el = gridEl.querySelector(`[data-memo="${cssEsc(floor)}"]`); if (el) el.className = "memo-btn " + (store.note(nk) ? "has-dot" : "empty"); }
-      else if (nk.startsWith("ph:") && editorOpen() && nk === "ph:" + edPart + ":" + edFloor) renderPhotos();
+      if (nk.indexOf("uc:") === 0 || nk.indexOf("dc:") === 0 || nk.indexOf("ucz:") === 0 || nk.indexOf("dcz:") === 0) {
+        const up = nk[0] === "u", pid = nk.slice(nk.indexOf(":") + 1);
+        const el = gridEl.querySelector(`[data-contact="${cssEsc((up ? "uc:" : "dc:") + pid)}"]`);
+        if (el) paintContact(el, up, pid);
+      }
+      else if (nk.indexOf("fm:") === 0) { const floor = nk.split(":")[2]; const el = gridEl.querySelector(`[data-memo="${cssEsc(floor)}"]`); if (el) el.className = "memo-btn " + (store.note(nk) ? "has-dot" : "empty"); }
+      else if (nk.indexOf("ph:") === 0 && editorOpen() && nk === "ph:" + edPart + ":" + edFloor) renderPhotos();
     } else {
       refreshCell(k); buildStatusStrip(currentParts);
       if (editorOpen() && k.indexOf(edPart + "|" + edFloor + "|") === 0) updatePreview();
@@ -606,7 +708,7 @@
   async function boot() {
     if (SEED.updated) document.getElementById("upd").textContent = "기준 " + SEED.updated;
     if (window.matchMedia("(max-width:760px)").matches) cellPx = 42;   // 모바일 기본 줌 크게
-    buildZoneTabs(); buildLegend(); setVars(); renderGrid();
+    buildZoneTabs(); setVars(); renderGrid();
     if (USER) document.getElementById("userLabel").textContent = USER.team ? `${USER.name}(${USER.team})` : USER.name;
     const conn = document.getElementById("connState");
     if (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase) {
