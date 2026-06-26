@@ -48,16 +48,20 @@ GRAY = {'BFBFBF', 'BEBEBE', 'C0C0C0'}
 NONE_C = {None, 'FFFFFF'}
 HEADER_BEIGE = 'FBE5D7'
 
+# 금일색(노랑·진파랑)은 '완료 + 당일' 의 일시적 표현 → 저장은 완료상태로,
+# 당일 여부는 날짜(d)로 렌더 시 판정. (다음날 자동 완료색)
 def resolve_status(rgb, layer):
-    if rgb == HEADER_BEIGE or rgb in NONE_C: return 'none'            # 흰색 = 작업없음
+    if rgb == HEADER_BEIGE or rgb in NONE_C: return 'none'            # 흰색 = 해당없음
     if rgb in GRAY: return 'not_installed'                            # 회색 = 미설치
     if rgb == 'FF0000': return 'etc_interf'                           # 빨강 = 기타 간섭구간
     if rgb == 'FF8F8F': return 'scaffold_interf'                      # 핑크 = 비계 간섭구간
-    if rgb == 'FFFF00': return 'today_drill'                          # 노랑 = 금일타공
-    if rgb == '0070C0': return 'today_install'                        # 진파랑 = 금일설치
+    if rgb == 'FFFF00': return 'drill_done'                           # 노랑 = 금일타공 → 타공완료(+당일)
+    if rgb == '0070C0': return 'install_done'                         # 진파랑 = 금일설치 → 설치완료(+당일)
     if rgb == '66FFFF': return 'drill_done' if layer == '바닥' else 'install_done'      # 시안 = 타공완료/설치완료
     if rgb == '00B0F0': return 'predrill_floor' if layer == '바닥' else 'predrill_duct'  # 하늘 = 기설치(타공/덕트)
     return 'none'
+
+TODAY_COLORS = {'FFFF00', '0070C0'}   # 원본에서 '금일'로 칠해져 있던 색
 
 ZONES = [
     ('북DS(FA,SA)', 3, 22),
@@ -138,10 +142,12 @@ def main():
                     status = 'no_beam'           # 횡주간 없음
                 else:
                     status = resolve_status(rgb, layer)
+                # 원본에서 '금일'(노랑/진파랑)로 칠해진 칸은 기준일(updated)에 완료된 것으로 기록
+                d = (str(ws['A1'].value)[:10] if ws['A1'].value else None) if (rgb in TODAY_COLORS) else None
                 cells.append({
                     'part': L, 'zone': zname, 'floor': floor, 'layer': layer,
                     'status': status,
-                    'color': ('#'+rgb) if (rgb and rgb not in NONE_C and rgb != HEADER_BEIGE) else None,
+                    'd': d,
                     'qty': (round(qty, 3) if isinstance(qty, float) else qty),
                     'qd': qty_disp,
                     'diag': diag,
@@ -155,18 +161,19 @@ def main():
         'zone_ranges': {z[0]: [z[1], z[2]] for z in ZONES},
         'floors': FLOOR_ORDER,
         'layers': ['횡주','입상','바닥'],
+        # sel=true 만 편집 팔레트에 노출. 금일색은 auto(완료+당일 자동).
         'legend': [
-            {'key':'not_installed','label':'미설치','color':'#BFBFBF','layers':['횡주','입상','바닥']},
-            {'key':'etc_interf','label':'기타 간섭구간','color':'#FF0000','layers':['횡주','입상','바닥']},
-            {'key':'scaffold_interf','label':'비계 간섭구간','color':'#FF8F8F','layers':['횡주','입상','바닥']},
-            {'key':'today_drill','label':'금일타공','color':'#FFFF00','layers':['바닥']},
-            {'key':'drill_done','label':'타공완료','color':'#66FFFF','layers':['바닥']},
-            {'key':'today_install','label':'금일설치','color':'#0070C0','layers':['횡주','입상']},
-            {'key':'install_done','label':'설치완료','color':'#66FFFF','layers':['횡주','입상']},
-            {'key':'predrill_duct','label':'기설치덕트','color':'#00B0F0','layers':['횡주','입상']},
-            {'key':'predrill_floor','label':'기설치타공','color':'#00B0F0','layers':['바닥']},
-            {'key':'none','label':'작업없음','color':'#FFFFFF','layers':['횡주','입상','바닥']},
-            {'key':'no_beam','label':'횡주간 없음','color':'#EAEAEA','layers':['횡주']},
+            {'key':'not_installed','label':'미설치','color':'#BFBFBF','layers':['횡주','입상','바닥'],'sel':True},
+            {'key':'install_done','label':'설치완료','color':'#66FFFF','layers':['횡주','입상'],'sel':True},
+            {'key':'drill_done','label':'타공완료','color':'#66FFFF','layers':['바닥'],'sel':True},
+            {'key':'etc_interf','label':'기타 간섭구간','color':'#FF0000','layers':['횡주','입상','바닥'],'sel':True},
+            {'key':'scaffold_interf','label':'비계 간섭구간','color':'#FF8F8F','layers':['횡주','입상','바닥'],'sel':True},
+            {'key':'predrill_duct','label':'기설치덕트','color':'#00B0F0','layers':['횡주','입상'],'sel':True},
+            {'key':'predrill_floor','label':'기설치타공','color':'#00B0F0','layers':['바닥'],'sel':True},
+            {'key':'today_install','label':'금일설치','color':'#0070C0','layers':['횡주','입상'],'sel':False,'auto':True},
+            {'key':'today_drill','label':'금일타공','color':'#FFFF00','layers':['바닥'],'sel':False,'auto':True},
+            {'key':'none','label':'해당없음','color':'#FFFFFF','layers':['횡주','입상','바닥'],'sel':False},
+            {'key':'no_beam','label':'횡주간 없음','color':'#EAEAEA','layers':['횡주'],'sel':False},
         ],
         'parts': parts, 'cells': cells,
     }

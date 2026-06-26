@@ -15,6 +15,7 @@
       <button id="searchClear" title="검색 지우기" class="hidden">✕</button>
     </div>
     <div class="spacer"></div>
+    <button id="diffBtn" class="btn-diff" title="전일 대비 변경 표시 (설치·간섭)">전일대비</button>
     <div class="zoom-ctrls">
       <button id="zoomOut" title="축소">－</button>
       <button id="zoomReset" title="원래대로">100%</button>
@@ -32,13 +33,42 @@
     <div id="grid" class="grid"></div>
   </main>
 
-  <!-- 상태 선택 팔레트 -->
-  <div id="paletteModal" class="modal hidden">
-    <div class="modal-card">
-      <div class="modal-head"><span id="paletteTitle">상태 선택</span><button class="close" data-close>✕</button></div>
-      <div id="paletteSub" class="palette-sub"></div>
-      <div id="paletteList" class="palette-list"></div>
-      <div class="modal-foot"><label class="qty-row">물량 <input id="qtyInput" type="text" inputmode="decimal" placeholder="(선택)" /></label></div>
+  <!-- (라인+층) 통합 편집 -->
+  <div id="editorModal" class="modal sheet hidden">
+    <div class="modal-card editor">
+      <div class="modal-head">
+        <div><span id="edTitle">덕트 · 층</span><div id="edSub" class="ed-sub"></div></div>
+        <button class="close" data-close aria-label="닫기">✕</button>
+      </div>
+      <div class="editor-body">
+        <div class="ed-preview">
+          <div class="pv-label">미리보기</div>
+          <div class="pv-cells">
+            <div class="pv-cell" data-pv="횡주"><i>횡주</i><b id="pvH"></b></div>
+            <div class="pv-cell tall" data-pv="입상"><i>입상</i><b id="pvI"></b></div>
+            <div class="pv-cell" data-pv="바닥"><i>바닥</i><b id="pvB"></b></div>
+          </div>
+        </div>
+        <div id="edLayers" class="ed-layers"></div>
+        <div class="ed-note">
+          <i class="auto-ic">⏱</i> 금일설치·금일타공은 자동입니다. 완료로 바꾸면 오늘은 금일색, 다음날 완료색으로 바뀝니다.
+        </div>
+        <div class="ed-field">
+          <label>잔여작업 메모</label>
+          <textarea id="edMemo" rows="2" placeholder="예: 보 간섭 해소 후 입상 연결 예정"></textarea>
+        </div>
+        <div class="ed-field">
+          <label>사진 (이 라인·층)</label>
+          <div id="edPhotos" class="ed-photos"></div>
+          <input id="photoInput" type="file" accept="image/*" capture="environment" multiple hidden />
+          <button id="photoBtn" class="btn-photo">📷 촬영·업로드</button>
+          <span id="photoHint" class="photo-hint"></span>
+        </div>
+      </div>
+      <div class="modal-foot ed-foot">
+        <span id="edMeta" class="ed-meta"></span>
+        <button class="btn-primary" data-close>완료</button>
+      </div>
     </div>
   </div>
 
