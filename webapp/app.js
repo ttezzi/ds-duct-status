@@ -8,9 +8,9 @@
   const LAYERS = ["횡주", "입상", "바닥"];
   const STCOLOR = {}, STLABEL = {}, STLAYERS = {};
   SEED.legend.forEach(l => { STCOLOR[l.key] = l.color; STLABEL[l.key] = l.label; STLAYERS[l.key] = l.layers || LAYERS; });
-  const DUCT_DONE = new Set(["install_done", "predrill_duct"]);
-  const FLOOR_DONE = new Set(["install_done", "drill_done", "predrill_floor"]);
-  const WORK_EXCLUDE = new Set(["none", "no_section", "no_beam"]);
+  const DUCT_DONE = new Set(["install_done", "predrill_duct", "today_install"]);
+  const FLOOR_DONE = new Set(["drill_done", "predrill_floor", "today_drill"]);
+  const WORK_EXCLUDE = new Set(["none", "no_beam"]);
 
   const keyOf = (p, f, l) => p + "|" + f + "|" + l;
   const seedCell = {}; SEED.cells.forEach(c => seedCell[keyOf(c.part, c.floor, c.layer)] = c);

@@ -43,24 +43,21 @@ def fmt_num(v, nf):
     if not isinstance(v, (int, float)): return None
     return str(int(round(v)))
 
-# 색 → 상태(레이어 비의존 기본). 바닥/입상 구분은 아래 resolve_status 에서.
-BASE = {
-    'FF0000': 'not_installed',
-    'FF8F8F': 'etc_interf',
-    'FFFF00': 'scaffold_interf',
-    '0070C0': 'drill_done',
-}
+# 색 → 상태  (범례 이미지 직접 확인: 색 스와치는 라벨 '왼쪽'에 배치)
 GRAY = {'BFBFBF', 'BEBEBE', 'C0C0C0'}
 NONE_C = {None, 'FFFFFF'}
 HEADER_BEIGE = 'FBE5D7'
 
 def resolve_status(rgb, layer):
-    if rgb == HEADER_BEIGE or rgb in NONE_C: return 'none'
-    if rgb in GRAY: return 'no_section'
-    if rgb in BASE: return BASE[rgb]
-    if rgb == '66FFFF': return 'today_drill' if layer == '바닥' else 'today_install'
-    if rgb == '00B0F0': return 'install_done'   # 기존 하늘색은 전부 설치완료(사용자 지정)
-    return 'none'   # 기설치(보라 #7030A0)는 원본에 없음 → 이후 편집으로만 부여
+    if rgb == HEADER_BEIGE or rgb in NONE_C: return 'none'            # 흰색 = 작업없음
+    if rgb in GRAY: return 'not_installed'                            # 회색 = 미설치
+    if rgb == 'FF0000': return 'etc_interf'                           # 빨강 = 기타 간섭구간
+    if rgb == 'FF8F8F': return 'scaffold_interf'                      # 핑크 = 비계 간섭구간
+    if rgb == 'FFFF00': return 'today_drill'                          # 노랑 = 금일타공
+    if rgb == '0070C0': return 'today_install'                        # 진파랑 = 금일설치
+    if rgb == '66FFFF': return 'drill_done' if layer == '바닥' else 'install_done'      # 시안 = 타공완료/설치완료
+    if rgb == '00B0F0': return 'predrill_floor' if layer == '바닥' else 'predrill_duct'  # 하늘 = 기설치(타공/덕트)
+    return 'none'
 
 ZONES = [
     ('북DS(FA,SA)', 3, 22),
@@ -159,17 +156,16 @@ def main():
         'floors': FLOOR_ORDER,
         'layers': ['횡주','입상','바닥'],
         'legend': [
-            {'key':'not_installed','label':'미설치','color':'#FF0000','layers':['횡주','입상','바닥']},
-            {'key':'etc_interf','label':'기타 간섭구간','color':'#FF8F8F','layers':['횡주','입상','바닥']},
-            {'key':'scaffold_interf','label':'비계 간섭구간','color':'#FFFF00','layers':['횡주','입상','바닥']},
-            {'key':'today_install','label':'금일설치','color':'#66FFFF','layers':['횡주','입상']},
-            {'key':'today_drill','label':'금일타공','color':'#66FFFF','layers':['바닥']},
-            {'key':'install_done','label':'설치완료','color':'#00B0F0','layers':['횡주','입상','바닥']},
-            {'key':'drill_done','label':'타공완료','color':'#0070C0','layers':['바닥','횡주','입상']},
-            {'key':'predrill_duct','label':'기설치덕트','color':'#7030A0','layers':['횡주','입상']},
-            {'key':'predrill_floor','label':'기설치타공','color':'#7030A0','layers':['바닥']},
+            {'key':'not_installed','label':'미설치','color':'#BFBFBF','layers':['횡주','입상','바닥']},
+            {'key':'etc_interf','label':'기타 간섭구간','color':'#FF0000','layers':['횡주','입상','바닥']},
+            {'key':'scaffold_interf','label':'비계 간섭구간','color':'#FF8F8F','layers':['횡주','입상','바닥']},
+            {'key':'today_drill','label':'금일타공','color':'#FFFF00','layers':['바닥']},
+            {'key':'drill_done','label':'타공완료','color':'#66FFFF','layers':['바닥']},
+            {'key':'today_install','label':'금일설치','color':'#0070C0','layers':['횡주','입상']},
+            {'key':'install_done','label':'설치완료','color':'#66FFFF','layers':['횡주','입상']},
+            {'key':'predrill_duct','label':'기설치덕트','color':'#00B0F0','layers':['횡주','입상']},
+            {'key':'predrill_floor','label':'기설치타공','color':'#00B0F0','layers':['바닥']},
             {'key':'none','label':'작업없음','color':'#FFFFFF','layers':['횡주','입상','바닥']},
-            {'key':'no_section','label':'구간없음','color':'#BFBFBF','layers':['횡주','입상','바닥']},
             {'key':'no_beam','label':'횡주간 없음','color':'#EAEAEA','layers':['횡주']},
         ],
         'parts': parts, 'cells': cells,
