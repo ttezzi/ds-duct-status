@@ -1,0 +1,5 @@
+# Netlify가 이 레포에 연결되면 이 설정으로 자동 배포됩니다.
+# 빌드 불필요(정적 단일 HTML) → 빌드명령 없음, webapp 폴더만 게시.
+[build]
+  publish = "webapp"
+  command = ""
