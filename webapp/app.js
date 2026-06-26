@@ -267,16 +267,11 @@
     return STCOLOR[st] || "#fff";
   }
   function paintCell(td, k) {
-    const c = store.cell(k), st = c.status;
-    const [pid, floor] = k.split("|");
+    const c = store.cell(k);
+    let st = c.status; if (st === "no_beam") st = "none";   // 횡주간없음 → 해당없음으로 통일(흰색)
     td.className = "c"; td.dataset.key = k;
-    if (st === "no_beam") {
-      td.classList.add("nobeam"); td.innerHTML = "";
-      td.style.background = "#fff";   // 횡주 없음 = 해당없음과 동일(흰색), 대각선 마커만
-      td.title = ""; return;
-    }
-    td.style.background = effColor(c);
-    td.innerHTML = (c.qd != null && c.qd !== "") ? `<span class="q">${c.qd}</span>` : "";
+    td.style.background = effColor({ status: st, d: c.d });
+    td.innerHTML = (st !== "none" && c.qd != null && c.qd !== "") ? `<span class="q">${c.qd}</span>` : "";
     const tm = store.note("wt:" + k);   // 작업팀(선택) → 툴팁
     td.title = tm ? "작업팀: " + tm : "";
     if (diffOn && c.d === TODAY && DIFF_STATUS.has(st)) td.classList.add("diffmark");
@@ -299,13 +294,13 @@
 
   // 범례 표(색·라벨)와 갯수를 한 칸에 통합 + 감추기. 진행바는 기설치/신규 구분.
   let legendHidden = localStorage.getItem("ds_legend_hidden") === "1";
-  const LEGEND_ORDER = ["not_installed", "install_done", "drill_done", "predrill_duct", "predrill_floor", "today_install", "today_drill", "etc_interf", "scaffold_interf", "none", "no_beam"];
+  const LEGEND_ORDER = ["not_installed", "install_done", "drill_done", "predrill_duct", "predrill_floor", "today_install", "today_drill", "etc_interf", "scaffold_interf", "none"];
   function buildStatusStrip(parts) {
     const strip = document.getElementById("statusStrip"); if (!strip) return;
     const cnt = {}; let dT = 0, fT = 0;
     parts.forEach(p => SEED.floors.forEach(f => LAYERS.forEach(L => {
       const k = keyOf(p.id, f, L); if (!seedCell[k]) return;
-      const c = store.cell(k), st = c.status; cnt[st] = (cnt[st] || 0) + 1;
+      const c = store.cell(k); let st = c.status; if (st === "no_beam") st = "none"; cnt[st] = (cnt[st] || 0) + 1;
       if (st === "install_done" && c.d === TODAY) cnt.today_install = (cnt.today_install || 0) + 1;
       if (st === "drill_done" && c.d === TODAY) cnt.today_drill = (cnt.today_drill || 0) + 1;
       if (WORK_EXCLUDE.has(st)) return;
@@ -347,8 +342,8 @@
   /* ---------- (라인+층) 통합 편집 ---------- */
   const editorModal = document.getElementById("editorModal");
   let edPart = null, edFloor = null;
-  // 레이어별 편집 옵션
-  const optsFor = layer => SEED.legend.filter(l => l.sel && (l.layers || LAYERS).includes(layer));
+  // 레이어별 편집 옵션 — '해당없음(none)'을 모든 레이어 공통 옵션으로 포함
+  const optsFor = layer => SEED.legend.filter(l => (l.sel || l.key === "none") && (l.layers || LAYERS).includes(layer));
   const hasLayer = (pid, f, l) => !!seedCell[keyOf(pid, f, l)];
 
   function openEditor(pid, floor) {
@@ -373,35 +368,26 @@
   function renderEditor() {
     const wrap = document.getElementById("edLayers"); wrap.innerHTML = "";
     const defs = [
-      { layer: "횡주", toggle: true, offKey: "no_beam", offLabel: "없음 (해당없음과 동일 · 대각선 표시)" },
-      { layer: "입상", toggle: false },
-      { layer: "바닥", toggle: true, offKey: "none", offLabel: "해당없음", title: "바닥 (타공)" },
+      { layer: "횡주" },
+      { layer: "입상" },
+      { layer: "바닥", title: "바닥 (타공)" },
     ];
     defs.forEach(def => {
       if (!hasLayer(edPart, edFloor, def.layer)) return;
-      const k = keyOf(edPart, edFloor, def.layer), cur = store.cell(k).status;
+      const k = keyOf(edPart, edFloor, def.layer);
+      let cur = store.cell(k).status; if (cur === "no_beam") cur = "none";   // 횡주간없음 → 해당없음으로 통일
       const row = document.createElement("div"); row.className = "ed-row"; row.dataset.layer = def.layer;
-      const off = def.toggle && cur === def.offKey;
-      let head = `<div class="ed-rh"><span class="lname">${def.title || def.layer}</span>`;
-      if (def.toggle) head += `<span class="seg"><button data-seg="on" class="${off ? "" : "on"}">있음</button><button data-seg="off" class="${off ? "on" : ""}">없음</button></span>`;
-      head += `</div>`;
-      let body;
-      if (off) body = `<div class="ed-none">${def.offLabel}</div>`;
-      else body = `<div class="ed-chips">` + optsFor(def.layer).map(l =>
+      let body = `<div class="ed-rh"><span class="lname">${def.title || def.layer}</span></div>`;
+      body += `<div class="ed-chips">` + optsFor(def.layer).map(l =>
         `<button class="chip ${cur === l.key ? "cur" : ""}" data-status="${l.key}"><span class="sw" style="background:${l.color}"></span>${l.label}</button>`).join("") + `</div>`;
       // 작업팀(선택) — 덕트설치·타공·횡주 누가 했는지
-      if (!off) body += `<div class="ed-team"><label>작업팀 <span class="opt">(선택)</span></label><input class="team-inp" data-team="${def.layer}" value="${escAttr(store.note("wt:" + keyOf(edPart, edFloor, def.layer)))}" placeholder="예: ○○설비팀" /></div>`;
-      row.innerHTML = head + body;
-      // 토글
-      row.querySelectorAll("[data-seg]").forEach(b => b.onclick = () => {
-        if (b.dataset.seg === "off") setLayer(def.layer, def.offKey);
-        else { const c = store.cell(k).status; setLayer(def.layer, (c === def.offKey || WORK_EXCLUDE.has(c)) ? "not_installed" : c); }
-      });
+      body += `<div class="ed-team"><label>작업팀 <span class="opt">(선택)</span></label><input class="team-inp" value="${escAttr(store.note("wt:" + k))}" placeholder="예: ○○설비팀" /></div>`;
+      row.innerHTML = body;
       // 상태칩
       row.querySelectorAll(".chip").forEach(b => b.onclick = () => setLayer(def.layer, b.dataset.status));
       // 작업팀 입력
       const ti = row.querySelector(".team-inp");
-      if (ti) ti.onchange = () => store.setNote("wt:" + keyOf(edPart, edFloor, def.layer), ti.value.trim(), meta());
+      if (ti) ti.onchange = () => store.setNote("wt:" + k, ti.value.trim(), meta());
       wrap.appendChild(row);
     });
     updatePreview();
@@ -418,14 +404,10 @@
       if (!hasLayer(edPart, edFloor, L)) { wrap.style.display = "none"; return; }
       wrap.style.display = "flex";
       const c = store.cell(keyOf(edPart, edFloor, L));
+      const st = c.status === "no_beam" ? "none" : c.status;   // 횡주간없음 → 해당없음
       wrap.classList.remove("beam-none");
-      if (L === "횡주" && c.status === "no_beam") {
-        wrap.style.background = "#fff";   // 횡주 없음 = 해당없음(흰색)
-        wrap.classList.add("beam-none"); el.textContent = "";
-      } else {
-        wrap.style.background = effColor(c);
-        el.textContent = (L === "입상" && c.qd != null) ? c.qd : "";
-      }
+      wrap.style.background = effColor({ status: st, d: c.d });
+      el.textContent = (L === "입상" && st !== "none" && c.qd != null) ? c.qd : "";
     });
   }
 
