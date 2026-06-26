@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>DS 입상덕트 작업현황</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">DS 입상덕트 작업현황 <span id="upd" class="upd"></span></div>
+    <div id="zoneTabs" class="zone-tabs"></div>
+    <div class="search-wrap">
+      <input id="searchInput" type="search" placeholder="성상·SIZE·덕트NO 검색 (예: 1200A, ACID)" />
+      <button id="searchClear" title="검색 지우기" class="hidden">✕</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="zoom-ctrls">
+      <button id="zoomOut" title="축소">－</button>
+      <button id="zoomReset" title="원래대로">100%</button>
+      <button id="zoomIn" title="확대">＋</button>
+    </div>
+    <button id="exportBtn" class="btn-export" title="엑셀로 내보내기">엑셀 ⬇</button>
+    <button id="userBtn" class="btn-user" title="사용자 변경"><span id="userLabel">사용자</span></button>
+    <span id="connState" class="conn local" title="저장 모드">로컬</span>
+  </header>
+
+  <div id="legendBar" class="legend-bar"></div>
+  <div id="statusStrip" class="status-strip"></div>
+
+  <main id="gridWrap">
+    <div id="grid" class="grid"></div>
+  </main>
+
+  <!-- 상태 선택 팔레트 -->
+  <div id="paletteModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head"><span id="paletteTitle">상태 선택</span><button class="close" data-close>✕</button></div>
+      <div id="paletteSub" class="palette-sub"></div>
+      <div id="paletteList" class="palette-list"></div>
+      <div class="modal-foot"><label class="qty-row">물량 <input id="qtyInput" type="text" inputmode="decimal" placeholder="(선택)" /></label></div>
+    </div>
+  </div>
+
+  <!-- 텍스트 입력(메모/접점) -->
+  <div id="textModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head"><span id="textTitle">메모</span><button class="close" data-close>✕</button></div>
+      <textarea id="textArea" rows="5" placeholder="내용 입력"></textarea>
+      <div class="modal-foot"><button id="textDelete" class="btn-ghost">삭제</button><button id="textSave" class="btn-primary">저장</button></div>
+    </div>
+  </div>
+
+  <!-- 이름/팀 입력 -->
+  <div id="nameModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head"><span>접속 정보</span></div>
+      <div class="name-form">
+        <label>이름 <input id="nameInput" type="text" placeholder="홍길동" /></label>
+        <label>팀 <input id="teamInput" type="text" placeholder="○○팀" /></label>
+      </div>
+      <div class="modal-foot"><button id="nameSave" class="btn-primary">시작</button></div>
+    </div>
+  </div>
+
+  <div id="infoTip" class="info-tip hidden"></div>
+
+  <script src="config.js"></script>
+  <script src="seed.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

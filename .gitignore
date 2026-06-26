@@ -1,0 +1,21 @@
+# Excel 임시 잠금 파일
+~$*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 편집기
+.vscode/
+.idea/
+
+# Claude 로컬 설정(비밀값 가능)
+.claude/settings.local.json
+
+# 앱에서 내보낸 결과물
+webapp/DS설치현황_*.xlsx
+
+# 파이썬
+__pycache__/
+*.pyc

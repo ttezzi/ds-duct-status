@@ -1,0 +1,49 @@
+# DS 입상덕트 작업현황 — 프로젝트 가이드 (Claude Code용)
+
+현장 DS(입상덕트 샤프트)의 층×덕트파트 **입면도**를 모바일에서 실시간 수정하는 웹앱.
+원본은 엑셀 1장(`DS 설치현황` 시트)이고, 이를 색=상태로 편집하는 앱으로 옮긴 것.
+
+## 구조
+```
+/ (repo root)
+├─ (260617)세보 PH2 DUCT설치현황_rev01.xlsx   # 원본 엑셀(입면도)
+├─ webapp/
+│  ├─ index.html / app.js / styles.css        # 빌드 불필요 단일 앱(vanilla JS)
+│  ├─ config.js                               # Supabase 설정(비우면 localStorage 모드)
+│  ├─ seed.js / seed.json                      # 엑셀에서 추출한 기준 데이터(파트100·셀2900)
+│  ├─ import_xlsx.py                           # 엑셀→seed 재생성 스크립트
+│  ├─ supabase/schema.sql                      # 클라우드 DB 스키마
+│  └─ README.md                                # 운영·배포·사용 상세
+└─ .claude/launch.json                         # 미리보기 서버(python http.server) 설정
+```
+
+## 실행 / 미리보기
+- **이 PC엔 Node.js가 없음** → Vite 등 빌드도구 사용 불가. 빌드리스 단일 HTML로 구성됨.
+- 로컬 미리보기: `python -m http.server 5510 --directory webapp` 후 http://localhost:5510
+  (또는 Claude Code 의 preview 가 `.claude/launch.json` 의 `ds-web` 사용)
+- 배포: `webapp` 폴더를 Netlify Drop 등에 올리면 됨. 단일 HTML이라 정적 호스팅이면 충분.
+
+## 데이터 재생성
+원본 엑셀이 바뀌면: `cd webapp && python import_xlsx.py` → `seed.js/seed.json` 갱신.
+(openpyxl 필요. 색 추출은 테마색→RGB 해석 포함)
+
+## 핵심 도메인 규칙 (정합성 — 검증 완료)
+- 세로축: 층마다 3행 = **횡주 / 입상 / 바닥(층막이타공)**, 10F→1F. + 상부접점·하부접점 행.
+- 가로축: 덕트파트 4구역 — **북DS(FA,SA) C–V / 동DS(FA) W–Y / 북DS(배기) AA–CT / 동DS(배기) CV–CZ**.
+  (W–Y는 라벨이 '동DS배기'여도 성상 FA라 **동DS(FA)** 가 맞음 — 사용자 확인)
+- 물량 숫자: 엑셀 표시서식 반영해 **항상 정수 반올림** 표기(표기만, 의미는 무시).
+- **대각선 = 횡주간 없음**(횡주 레이어 전용, 값 없음). 옅게 표시.
+- 색=상태(원본 입면도는 실제 8색뿐, Excel 표시색 3중검증). 앱 범례:
+  미설치#FF0000 · 기타간섭#FF8F8F · 비계간섭#FFFF00 · 금일#66FFFF · 설치완료#00B0F0 ·
+  타공완료#0070C0 · **기설치(덕트=타공)#7030A0(보라, 앱에서 분리)** · 작업없음(흰) · 구간없음#BFBFBF
+  - 원본은 설치완료=기설치덕트 동일색이라 기존 하늘색은 **전부 설치완료**로 분류. 기설치(보라)는 편집으로 부여.
+- 완료 집계(구간 칸 수): 덕트=설치완료+기설치덕트 / 바닥=설치완료+타공완료+기설치타공. 시안(금일)은 미포함.
+
+## 저장 모드
+- `config.js` 비면 **localStorage**(단일기기), 채우면 **Supabase 실시간 공유**(여러 기기·변경이력).
+- Supabase: `webapp/supabase/schema.sql` 실행 → `config.js` 에 URL/anon key 입력. 변경분만 저장(기준은 seed).
+
+## 작업 시 주의
+- 셀 좌표 키: `"<열문자>|<층>|<레이어>"` 예) `"AB|9F|입상"`.
+- 앱은 외부 의존성을 CDN으로 로드(supabase-js, exceljs). 인터넷 필요.
+- 미리보기 스크린샷 도구가 가끔 멈추면 `preview_eval` 로 DOM 상태 확인.
