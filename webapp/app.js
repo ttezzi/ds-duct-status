@@ -201,11 +201,12 @@
     tbody.appendChild(contactRow(parts, "upper", "상부접점"));
 
     // 층 × 레이어
-    SEED.floors.forEach(floor => {
+    SEED.floors.forEach((floor, fi) => {
       const present = LAYERS.filter(L => parts.some(p => seedCell[keyOf(p.id, floor, L)]));
       present.forEach((layer, li) => {
         const tr = document.createElement("tr");
         tr.className = "lyr-" + (layer === "횡주" ? "h" : layer === "입상" ? "v" : "b");
+        if (fi % 2 === 1) tr.classList.add("fb");   // 층 교대 밴드
         if (li === 0) tr.classList.add("floor-top");
         const mid = li === present.indexOf("입상") || (present.indexOf("입상") < 0 && li === Math.floor((present.length - 1) / 2));
         const fl = document.createElement("td"); fl.className = "rl floor";
@@ -604,6 +605,7 @@
   /* ---------- 부트 ---------- */
   async function boot() {
     if (SEED.updated) document.getElementById("upd").textContent = "기준 " + SEED.updated;
+    if (window.matchMedia("(max-width:760px)").matches) cellPx = 42;   // 모바일 기본 줌 크게
     buildZoneTabs(); buildLegend(); setVars(); renderGrid();
     if (USER) document.getElementById("userLabel").textContent = USER.team ? `${USER.name}(${USER.team})` : USER.name;
     const conn = document.getElementById("connState");

@@ -72,7 +72,10 @@ table.elev th,table.elev td{border-right:1px solid var(--line2);border-bottom:1p
 .elev .rl.layer.lyr-h{background:#eaf1fb;color:#2b5288}
 .elev .rl.layer.lyr-v{background:#fff3e6;color:#9a5a23}
 .elev .rl.layer.lyr-b{background:#e9f8ee;color:#247346}
-.elev tr.floor-top td{border-top:2px solid #9aa7b8}
+.elev tr.floor-top td{border-top:3px solid #334155}
+.elev tr.floor-top .rl.floor{border-top:3px solid #334155}
+/* 층 교대 밴드(좌측 라벨열) — 층 구분 강화 */
+.elev tr.fb .rl{filter:brightness(.92)}
 
 /* 헤더 2단 고정 + 구역색 */
 .elev thead th{background:#eef1f5;z-index:8}
@@ -101,8 +104,8 @@ table.elev th,table.elev td{border-right:1px solid var(--line2);border-bottom:1p
 .elev td.c.absent{background:repeating-linear-gradient(45deg,#fbfbfb,#fbfbfb 3px,#f2f2f2 3px,#f2f2f2 6px);cursor:default}
 .elev td.c .q{position:relative;z-index:2;text-shadow:0 0 2px rgba(255,255,255,.85)}
 /* 횡주간 없음: 옅은 회색 + 가는 사선 1개 (약하게) */
-.elev td.c.nobeam{background:#f0f1f3;cursor:default}
-.elev td.c.nobeam::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(to top right,transparent 47.5%,#cbd0d6 47.5%,#cbd0d6 52.5%,transparent 52.5%)}
+.elev td.c.nobeam{cursor:default}
+.elev td.c.nobeam::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(to top right,transparent 49%,rgba(60,70,85,.38) 49%,rgba(60,70,85,.38) 51%,transparent 51%)}
 .elev td.c.sel{outline:3px solid var(--accent);outline-offset:-3px;z-index:5}
 .elev td.c.dim{opacity:.18}
 .elev td.c.hit{outline:2px solid #f59e0b;outline-offset:-2px}
@@ -206,7 +209,7 @@ table.elev th,table.elev td{border-right:1px solid var(--line2);border-bottom:1p
 }
 
 @media (max-width:760px){
-  :root{--rowlbl:34px;--laylbl:22px}
+  :root{--rowlbl:38px;--laylbl:24px}
   #topbar{gap:5px;padding:5px 8px}
   .brand{flex-basis:100%;font-size:13px;margin-bottom:1px}
   .zone-tabs{flex:1 1 auto;flex-wrap:nowrap;overflow-x:auto}
@@ -214,6 +217,14 @@ table.elev th,table.elev td{border-right:1px solid var(--line2);border-bottom:1p
   .search-wrap{order:5;flex:1 1 100%}.search-wrap input{width:100%}
   .spacer{display:none}
   .btn-export,.btn-user{padding:6px 8px;font-size:11px}
-  .legend-bar{gap:7px;font-size:10.5px;padding:4px 8px}
+  /* 범례는 모바일에서 숨김(편집 시 색은 모달에서 보임) */
+  .legend-bar{display:none}
   .status-strip{font-size:10px;gap:8px;padding:4px 8px}
+  /* 층·라인 더 크게 */
+  .elev .rl.floor .fl-name{font-size:14px}
+  .elev .rl.layer{font-size:11px}
+  .elev thead th .pn{font-size:11px}
+  .elev thead th .sg{font-size:9.5px}
+  .elev td.c{font-size:11px;font-weight:700}
+  .elev tr.lyr-h td.c,.elev tr.lyr-b td.c{font-size:10px}
 }
