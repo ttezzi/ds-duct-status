@@ -3,18 +3,19 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>DS 입상덕트 작업현황</title>
+<title>P4 Ph2 입상덕트 설치현황</title>
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header id="topbar">
-    <div class="brand">DS 입상덕트 작업현황 <span id="upd" class="upd"></span></div>
+    <div class="brand">P4 Ph2 입상덕트 설치현황 <span id="upd" class="upd"></span></div>
     <div id="zoneTabs" class="zone-tabs"></div>
     <div class="search-wrap">
       <input id="searchInput" type="search" placeholder="성상·SIZE·덕트NO 검색 (예: 1200A, ACID)" />
       <button id="searchClear" title="검색 지우기" class="hidden">✕</button>
     </div>
     <div class="spacer"></div>
+    <button id="dashBtn" class="btn-dash" title="대시보드">📊 대시보드</button>
     <button id="diffBtn" class="btn-diff" title="전일 대비 변경 표시 (설치·간섭)">전일대비</button>
     <div class="zoom-ctrls">
       <button id="zoomOut" title="축소">－</button>
@@ -26,7 +27,7 @@
     <span id="connState" class="conn local" title="저장 모드">로컬</span>
   </header>
 
-  <div id="legendBar" class="legend-bar"></div>
+  <!-- 범례 + 진행/갯수 통합 바 (감추기 가능) -->
   <div id="statusStrip" class="status-strip"></div>
 
   <main id="gridWrap">
@@ -60,8 +61,11 @@
         <div class="ed-field">
           <label>사진 (이 라인·층)</label>
           <div id="edPhotos" class="ed-photos"></div>
-          <input id="photoInput" type="file" accept="image/*" capture="environment" multiple hidden />
-          <button id="photoBtn" class="btn-photo">📷 촬영·업로드</button>
+          <div id="photoDrop" class="photo-drop">
+            <input id="photoInput" type="file" accept="image/*" capture="environment" multiple hidden />
+            <button id="photoBtn" class="btn-photo">📷 촬영·업로드</button>
+            <span class="drop-hint">또는 사진을 끌어다 놓거나 붙여넣기(Ctrl+V)</span>
+          </div>
           <span id="photoHint" class="photo-hint"></span>
         </div>
       </div>
@@ -76,8 +80,23 @@
   <div id="textModal" class="modal hidden">
     <div class="modal-card">
       <div class="modal-head"><span id="textTitle">메모</span><button class="close" data-close>✕</button></div>
+      <div id="textStatus" class="text-status hidden">
+        <span class="ts-label">상태</span>
+        <span class="seg ts-seg">
+          <button data-cstat="todo">미완료</button>
+          <button data-cstat="done">완료</button>
+        </span>
+      </div>
       <textarea id="textArea" rows="5" placeholder="내용 입력"></textarea>
       <div class="modal-foot"><button id="textDelete" class="btn-ghost">삭제</button><button id="textSave" class="btn-primary">저장</button></div>
+    </div>
+  </div>
+
+  <!-- 대시보드 -->
+  <div id="dashModal" class="modal hidden">
+    <div class="modal-card dash">
+      <div class="modal-head"><span>📊 대시보드 <span id="dashScope" class="dash-scope"></span></span><button class="close" data-close>✕</button></div>
+      <div id="dashBody" class="dash-body"></div>
     </div>
   </div>
 
