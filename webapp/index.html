@@ -30,7 +30,7 @@
       <button id="zoomIn" title="확대">＋</button>
     </div>
     <button id="exportBtn" class="btn-export" title="엑셀로 내보내기">엑셀 ⬇</button>
-    <button id="userBtn" class="btn-user" title="사용자 변경"><span id="userLabel">사용자</span></button>
+    <button id="userBtn" class="btn-user" title="로그인 / 사용자 변경"><span id="userLabel">로그인</span></button>
     <span id="connState" class="conn local" title="저장 모드">로컬</span>
   </header>
 
@@ -115,15 +115,25 @@
     </div>
   </div>
 
-  <!-- 이름/팀 입력 -->
+  <!-- 로그인(공구·이름·비번) -->
   <div id="nameModal" class="modal hidden">
     <div class="modal-card">
-      <div class="modal-head"><span>접속 정보</span></div>
-      <div class="name-form">
-        <label>이름 <input id="nameInput" type="text" placeholder="홍길동" /></label>
-        <label>팀 <input id="teamInput" type="text" placeholder="○○팀" /></label>
+      <div class="modal-head"><span>🔒 로그인</span><button class="close" data-close aria-label="닫기">✕</button></div>
+      <div class="login-form">
+        <div class="login-note">수정하려면 로그인하세요. 닫으면 읽기 전용으로 볼 수 있습니다.</div>
+        <div class="login-field"><label>공구 선택</label><div id="gongguBtns" class="gonggu-btns"></div></div>
+        <div class="login-field"><label>이름</label>
+          <div id="rosterChips" class="roster-chips"></div>
+          <input id="newNameInput" type="text" placeholder="새 이름 입력" autocomplete="off" />
+        </div>
+        <div class="login-field"><label>비밀번호</label><input id="pwInput" type="password" placeholder="공구 비밀번호" autocomplete="off" /></div>
+        <div id="loginError" class="login-error"></div>
       </div>
-      <div class="modal-foot"><button id="nameSave" class="btn-primary">시작</button></div>
+      <div class="modal-foot login-foot">
+        <button id="logoutBtn" class="btn-ghost hidden">로그아웃</button>
+        <button class="btn-soft" data-close>그냥 보기(읽기)</button>
+        <button id="loginSubmit" class="btn-primary">시작</button>
+      </div>
     </div>
   </div>
 
