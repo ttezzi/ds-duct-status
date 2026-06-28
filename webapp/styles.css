@@ -109,7 +109,7 @@ button{font-family:inherit;cursor:pointer}
 .status-strip .chip{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid #d8e0ea;border-radius:999px;padding:4px 9px;white-space:nowrap;color:#334155;box-shadow:0 2px 10px rgba(15,23,42,.04)}
 .status-strip .chip .sw{width:11px;height:11px;border-radius:3px;border:1px solid #ffffff40;display:inline-block;vertical-align:middle}
 .status-strip .chip .sw.xbeam{background:#eaeaea;position:relative;overflow:hidden}
-.status-strip .chip .sw.xbeam::after{content:"";position:absolute;inset:0;background:linear-gradient(to top right,transparent 42%,#64748b 42%,#64748b 58%,transparent 58%)}
+.status-strip .chip .sw.xbeam::after{content:"";position:absolute;inset:0;background:linear-gradient(to top right,transparent 40%,#475569 40%,#475569 60%,transparent 60%),linear-gradient(to bottom right,transparent 40%,#475569 40%,#475569 60%,transparent 60%)}
 .status-strip .chip .auto-tag{font-style:normal;font-size:9px;background:#dbeafe;color:#1d4ed8;border-radius:4px;padding:0 3px}
 .status-strip .chip b{color:#0f172a}
 
@@ -166,7 +166,7 @@ table.elev th,table.elev td{border-right:1px solid var(--line2);border-bottom:1p
 .elev tbody tr:hover td.c{background:#f8fbff}
 .elev td.c:hover{z-index:3;box-shadow:inset 0 0 0 1px rgba(37,99,235,.22), 0 0 0 1px rgba(37,99,235,.06)}
 .elev td.c.nobeam{cursor:pointer}
-.elev td.c.nobeam::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(to top right,transparent 49%,rgba(60,70,85,.38) 49%,rgba(60,70,85,.38) 51%,transparent 51%)}
+.elev td.c.nobeam::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(to top right,transparent 47%,rgba(15,23,42,.6) 47%,rgba(15,23,42,.6) 53%,transparent 53%),linear-gradient(to bottom right,transparent 47%,rgba(15,23,42,.6) 47%,rgba(15,23,42,.6) 53%,transparent 53%)}
 .elev td.c.sel{outline:3px solid var(--accent);outline-offset:-3px;z-index:5;box-shadow:0 0 0 2px rgba(37,99,235,.12)}
 .elev td.c.dim{opacity:.18}
 .elev td.c.hit{outline:2px solid #f59e0b;outline-offset:-2px}
@@ -263,7 +263,7 @@ table.elev th,table.elev td{border-right:1px solid var(--line2);border-bottom:1p
 .pv-cell.tall{height:34px}
 .pv-cell i{position:absolute;left:3px;font-style:normal;font-size:8px;color:#33415588}
 .pv-cell b{font-size:10px;font-weight:600;color:#15233a}
-.pv-cell.beam-none{background-image:linear-gradient(to top right,transparent 46%,#5b6b7e 46%,#5b6b7e 54%,transparent 54%)}
+.pv-cell.beam-none{background-image:linear-gradient(to top right,transparent 46%,#1e293b 46%,#1e293b 54%,transparent 54%),linear-gradient(to bottom right,transparent 46%,#1e293b 46%,#1e293b 54%,transparent 54%)}
 .ed-layers{display:flex;flex-direction:column}
 .ed-row{padding:11px 0;border-bottom:1px solid var(--line2)}
 .ed-row .ed-rh{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
@@ -275,6 +275,8 @@ table.elev th,table.elev td{border-right:1px solid var(--line2);border-bottom:1p
 .ed-chips{display:flex;flex-wrap:wrap;gap:7px}
 .ed-chips .chip{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;font-size:13px;border-radius:8px;border:1px solid var(--line);background:#fff;min-height:38px}
 .ed-chips .chip .sw{width:16px;height:16px;border-radius:4px;border:1px solid #00000055}
+.ed-chips .chip .sw.xbeam{background:#fff;position:relative;overflow:hidden}
+.ed-chips .chip .sw.xbeam::after{content:"";position:absolute;inset:0;background:linear-gradient(to top right,transparent 42%,#334155 42%,#334155 58%,transparent 58%),linear-gradient(to bottom right,transparent 42%,#334155 42%,#334155 58%,transparent 58%)}
 .ed-chips .chip.cur{border-color:#1f2937;box-shadow:inset 0 0 0 1.5px #1f2937;background:#f8fafc}
 .ed-none{font-size:12.5px;color:#64748b;padding:4px 0}
 .ed-note{background:#eff6ff;color:#1e40af;border-radius:8px;padding:9px 11px;font-size:12px;line-height:1.5;margin:12px 0}

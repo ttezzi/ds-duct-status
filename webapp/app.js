@@ -345,10 +345,17 @@
   }
   function paintCell(td, k) {
     const c = store.cell(k);
-    const isNoBeam = c.status === "no_beam";   // 횡주간 없음 = 대각선 표시(색은 해당없음=흰색)
-    let st = c.status; if (st === "no_beam") st = "none";
     td.className = "c"; td.dataset.key = k;
-    if (isNoBeam) td.classList.add("nobeam");
+    if (c.status === "no_beam") {
+      // 횡주간 없음: 입상 있고 횡주 없음 → 입상 색을 따라가고 대각선 X(숫자 없음)
+      td.classList.add("nobeam");
+      td.style.background = riserColor(k);
+      td.innerHTML = "";
+      td.title = "횡주간 없음 (입상 색 따라감)";
+      if (store.isPending(k)) td.classList.add("unsaved");
+      return;
+    }
+    const st = c.status;
     td.style.background = effColor({ status: st, d: c.d });
     let inner = (st !== "none" && c.qd != null && c.qd !== "") ? `<span class="q">${c.qd}</span>` : "";
     const phx = (st === "scaffold_interf") ? store.note("phx:" + k) : "";   // 비계 간섭 단계(PH2/PH4)
@@ -359,6 +366,13 @@
     // 전일대비(오늘) 또는 날짜네비(선택일)에 변경된 설치·간섭 칸 강조
     if (DIFF_STATUS.has(st) && ((diffOn && c.d === TODAY) || (viewDate && c.d === viewDate))) td.classList.add("diffmark");
     if (store.isPending(k)) td.classList.add("unsaved");   // 저장 대기 표시
+  }
+  // 횡주 칸의 '입상 따라감' 색 — 같은 라인·층 입상 색(금일색 포함)
+  function riserColor(k) {
+    const a = k.split("|"), ik = a[0] + "|" + a[1] + "|입상";
+    const ic = seedCell[ik] ? store.cell(ik) : null;
+    const ist = ic && ic.status !== "no_beam" ? ic.status : "none";
+    return effColor({ status: ist, d: ic ? ic.d : null });
   }
 
   function floorDoneCount(partId) {
@@ -424,15 +438,17 @@
   function cssEsc(s) { return s.replace(/["\\]/g, "\\$&"); }
   function refreshCell(k) {
     const td = gridEl.querySelector(`td.c[data-key="${cssEsc(k)}"]`); if (td) paintCell(td, k);
-    const part = k.split("|")[0];
-    const ct = gridEl.querySelector(`td[data-count-part="${cssEsc(part)}"]`); if (ct) setCount(ct, part);
+    const a = k.split("|");
+    // 입상 색이 바뀌면 같은 라인·층의 '횡주간 없음' 칸도 따라 갱신
+    if (a[2] === "입상") { const hk = a[0] + "|" + a[1] + "|횡주"; const htd = gridEl.querySelector(`td.c[data-key="${cssEsc(hk)}"]`); if (htd) paintCell(htd, hk); }
+    const ct = gridEl.querySelector(`td[data-count-part="${cssEsc(a[0])}"]`); if (ct) setCount(ct, a[0]);
   }
 
   /* ---------- (라인+층) 통합 편집 ---------- */
   const editorModal = document.getElementById("editorModal");
   let edPart = null, edFloor = null;
   // 레이어별 편집 옵션 — '해당없음(none)'을 모든 레이어 공통 옵션으로 포함
-  const optsFor = layer => SEED.legend.filter(l => (l.sel || l.key === "none") && (l.layers || LAYERS).includes(layer));
+  const optsFor = layer => SEED.legend.filter(l => (l.sel || l.key === "none" || l.key === "no_beam") && (l.layers || LAYERS).includes(layer));
   const hasLayer = (pid, f, l) => !!seedCell[keyOf(pid, f, l)];
 
   function openEditor(pid, floor) {
@@ -464,11 +480,13 @@
     defs.forEach(def => {
       if (!hasLayer(edPart, edFloor, def.layer)) return;
       const k = keyOf(edPart, edFloor, def.layer);
-      let cur = store.cell(k).status; if (cur === "no_beam") cur = "none";   // 횡주간없음 → 해당없음으로 통일
+      let cur = store.cell(k).status;   // 횡주간 없음(no_beam)도 그대로 표시 — 현재값 정확히 하이라이트
       const row = document.createElement("div"); row.className = "ed-row"; row.dataset.layer = def.layer;
       let body = `<div class="ed-rh"><span class="lname">${def.title || def.layer}</span></div>`;
-      body += `<div class="ed-chips">` + optsFor(def.layer).map(l =>
-        `<button class="chip ${cur === l.key ? "cur" : ""}" data-status="${l.key}"><span class="sw" style="background:${l.color}"></span>${l.label}</button>`).join("") + `</div>`;
+      body += `<div class="ed-chips">` + optsFor(def.layer).map(l => {
+        const sw = l.key === "no_beam" ? `<span class="sw xbeam"></span>` : `<span class="sw" style="background:${l.color}"></span>`;
+        return `<button class="chip ${cur === l.key ? "cur" : ""}" data-status="${l.key}">${sw}${l.label}</button>`;
+      }).join("") + `</div>`;
       // 비계 간섭이면 PH 단계(PH2/PH4) 추가 선택
       if (cur === "scaffold_interf") {
         const phv = store.note("phx:" + k);
@@ -504,8 +522,19 @@
       if (!hasLayer(edPart, edFloor, L)) { wrap.style.display = "none"; return; }
       wrap.style.display = "flex";
       const c = store.cell(keyOf(edPart, edFloor, L));
-      const st = c.status === "no_beam" ? "none" : c.status;   // 횡주간없음 → 흰색 + 대각선
-      wrap.classList.toggle("beam-none", c.status === "no_beam");
+      if (L === "횡주" && c.status === "no_beam") {
+        // 횡주간 없음: 입상 색 따라가고 대각선 X
+        const ic = store.cell(keyOf(edPart, edFloor, "입상"));
+        const ist = ic.status === "no_beam" ? "none" : ic.status;
+        wrap.classList.add("beam-none");
+        wrap.style.backgroundImage = "";   // 인라인 none 제거 → .beam-none 의 대각선 적용
+        wrap.style.backgroundColor = effColor({ status: ist, d: ic.d });
+        el.textContent = "";
+        return;
+      }
+      wrap.classList.remove("beam-none");
+      const st = c.status === "no_beam" ? "none" : c.status;
+      wrap.style.backgroundImage = "none";
       wrap.style.background = effColor({ status: st, d: c.d });
       el.textContent = (L === "입상" && st !== "none" && c.qd != null) ? c.qd : "";
     });
