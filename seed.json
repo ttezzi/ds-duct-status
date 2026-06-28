@@ -76,7 +76,7 @@
   },
   {
    "key": "etc_interf",
-   "label": "기타 간섭구간",
+   "label": "기타 간섭",
    "color": "#FF0000",
    "layers": [
     "횡주",
@@ -87,7 +87,7 @@
   },
   {
    "key": "scaffold_interf",
-   "label": "비계 간섭구간",
+   "label": "비계 간섭",
    "color": "#FF8F8F",
    "layers": [
     "횡주",

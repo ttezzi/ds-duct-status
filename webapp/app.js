@@ -345,8 +345,10 @@
   }
   function paintCell(td, k) {
     const c = store.cell(k);
-    let st = c.status; if (st === "no_beam") st = "none";   // 횡주간없음 → 해당없음으로 통일(흰색)
+    const isNoBeam = c.status === "no_beam";   // 횡주간 없음 = 대각선 표시(색은 해당없음=흰색)
+    let st = c.status; if (st === "no_beam") st = "none";
     td.className = "c"; td.dataset.key = k;
+    if (isNoBeam) td.classList.add("nobeam");
     td.style.background = effColor({ status: st, d: c.d });
     let inner = (st !== "none" && c.qd != null && c.qd !== "") ? `<span class="q">${c.qd}</span>` : "";
     const phx = (st === "scaffold_interf") ? store.note("phx:" + k) : "";   // 비계 간섭 단계(PH2/PH4)
@@ -377,13 +379,13 @@
   // 범례 표(색·라벨)와 갯수를 한 칸에 통합 + 감추기. 진행바는 기설치/신규 구분.
   // 모바일에선 범례·갯수(해당없음 포함) 기본 접힘. 저장된 선택이 있으면 그걸 우선.
   let legendHidden = localStorage.getItem("ds_legend_hidden") === "1";   // 기본 펼침(명시적으로 숨긴 경우만 접힘)
-  const LEGEND_ORDER = ["not_installed", "install_done", "drill_done", "predrill_duct", "predrill_floor", "today_install", "today_drill", "etc_interf", "scaffold_interf", "none"];
+  const LEGEND_ORDER = ["not_installed", "install_done", "drill_done", "predrill_duct", "predrill_floor", "today_install", "today_drill", "etc_interf", "scaffold_interf", "none", "no_beam"];
   function buildStatusStrip(parts) {
     const strip = document.getElementById("statusStrip"); if (!strip) return;
     const cnt = {}; let dT = 0, fT = 0;
     parts.forEach(p => SEED.floors.forEach(f => LAYERS.forEach(L => {
       const k = keyOf(p.id, f, L); if (!seedCell[k]) return;
-      const c = store.cell(k); let st = c.status; if (st === "no_beam") st = "none"; cnt[st] = (cnt[st] || 0) + 1;
+      const c = store.cell(k); let st = c.status; if (st === "no_beam") { cnt.no_beam = (cnt.no_beam || 0) + 1; st = "none"; } cnt[st] = (cnt[st] || 0) + 1;
       if (st === "install_done" && c.d === TODAY) cnt.today_install = (cnt.today_install || 0) + 1;
       if (st === "drill_done" && c.d === TODAY) cnt.today_drill = (cnt.today_drill || 0) + 1;
       if (WORK_EXCLUDE.has(st)) return;
@@ -502,8 +504,8 @@
       if (!hasLayer(edPart, edFloor, L)) { wrap.style.display = "none"; return; }
       wrap.style.display = "flex";
       const c = store.cell(keyOf(edPart, edFloor, L));
-      const st = c.status === "no_beam" ? "none" : c.status;   // 횡주간없음 → 해당없음
-      wrap.classList.remove("beam-none");
+      const st = c.status === "no_beam" ? "none" : c.status;   // 횡주간없음 → 흰색 + 대각선
+      wrap.classList.toggle("beam-none", c.status === "no_beam");
       wrap.style.background = effColor({ status: st, d: c.d });
       el.textContent = (L === "입상" && st !== "none" && c.qd != null) ? c.qd : "";
     });
