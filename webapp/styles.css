@@ -114,7 +114,8 @@ button{font-family:inherit;cursor:pointer}
 .status-strip .chip b{color:#0f172a}
 
 /* 그리드 */
-#gridWrap{flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;position:relative;padding:12px 12px 16px}
+/* ※ 좌/상 패딩 금지 — sticky 고정열/헤더가 패딩 안쪽에 붙어 그 틈으로 스크롤 데이터가 비침. 하단 여백만. */
+#gridWrap{flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;position:relative;padding:0 0 16px}
 .grid{display:inline-block;padding:0}
 /* ※ overflow:hidden 금지 — 표가 sticky 기준 컨테이너가 되어 틀고정(헤더·좌측열)이 깨짐. 둥근모서리는 헤더/좌측열 sticky 셀이 가려 큰 영향 없음. */
 table.elev{border-collapse:separate;border-spacing:0;background:var(--surface);box-shadow:var(--shadow);border-radius:18px;border:1px solid rgba(199,207,218,.8)}
@@ -355,7 +356,7 @@ table.elev th,table.elev td{border-right:1px solid var(--line2);border-bottom:1p
   .legend-bar{display:none}
   .status-strip{font-size:10px;gap:8px;padding:6px 8px}
   .status-strip .prog{min-width:unset;flex:1 1 100%}
-  #gridWrap{padding:8px}
+  #gridWrap{padding:0 0 8px}
   .elev .rl.floor .fl-name{font-size:14px}
   .elev .rl.layer{font-size:11px}
   .elev thead th .pn{font-size:11px}
