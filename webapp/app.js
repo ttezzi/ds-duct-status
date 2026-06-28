@@ -31,6 +31,12 @@
     const n = Number(v); if (isNaN(n)) return String(v);
     return String(Math.round(n));   // 물량은 정수로 표기
   }
+  // 덕트사이즈 표기: 사각(1800×1000)은 세로 3줄(1800/×/1000), A형 원형(900A)은 그대로
+  function fmtSize(size) {
+    const s = String(size || "").trim(); if (!s) return "";
+    if (s.indexOf("×") >= 0) return s.split("×").map(x => escAttr(x.trim())).join("<br>×<br>");
+    return escAttr(s);
+  }
 
   /* ---------- Store ---------- */
   function makeStore() {
@@ -99,6 +105,7 @@
       async loadLog(n) { return backend && backend.loadLog ? backend.loadLog(n) : []; },
       cloud() { return store.mode === "cloud"; },
       attach(b) { backend = b; },
+      async trackPresence() { if (backend && backend.trackPresence) { try { await backend.trackPresence(); } catch (e) {} } },
     };
   }
   const store = makeStore();
@@ -136,7 +143,13 @@
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "notes" }, p => { const r = p.new || p.old; if (r && r.key) { store._note(r.key, p.new ? p.new.body : ""); store.emit("note:" + r.key); } })
       .subscribe();
+    // 현재 접속 인원(presence) — 탭마다 고유키로 추적
+    const tabId = "t" + Math.random().toString(36).slice(2) + "_" + Date.now();
+    const presCh = sb.channel("ds-presence", { config: { presence: { key: tabId } } });
+    presCh.on("presence", { event: "sync" }, () => { setPresenceCount(Object.keys(presCh.presenceState()).length); });
+    presCh.subscribe(async (status) => { if (status === "SUBSCRIBED") { try { await presCh.track({ name: (USER && USER.name) || "익명", at: Date.now() }); } catch (e) {} } });
     return {
+      async trackPresence() { try { await presCh.track({ name: (USER && USER.name) || "익명", at: Date.now() }); } catch (e) {} },
       async saveCell(k, v, meta, old) {
         const row = { key: k, status: v.status, qty: v.qty == null ? null : v.qty, qd: v.qd || null, d: v.d || null, updated_by: meta && meta.name, updated_at: new Date().toISOString() };
         const { error } = await sb.from("cells").upsert(row); if (error) throw error;
@@ -193,6 +206,12 @@
     if (job.kind === "cell") { const td = gridEl.querySelector(`td.c[data-key="${cssEsc(job.k)}"]`); if (td) td.classList.toggle("unsaved", store.isPending(job.k)); }
     paintConn();
   }
+  // 현재 접속 인원(실시간 모드 presence)
+  function setPresenceCount(n) {
+    const el = document.getElementById("presence"); if (!el) return;
+    if (n && store.cloud()) { el.textContent = "👥 " + n + "명"; el.classList.remove("hidden"); }
+    else el.classList.add("hidden");
+  }
 
   /* ---------- 상태 ---------- */
   partsByZone["all"] = SEED.parts;
@@ -204,6 +223,7 @@
   const saveZones = () => localStorage.setItem("ds_zones", JSON.stringify([...enabledZones]));
   let searchQ = "";
   let diffOn = false;               // 전일대비 표시
+  let viewDate = null;              // 날짜 네비(선택일) — null=기준(강조 없음)
   let currentParts = [];
   const gridEl = document.getElementById("grid");
   const gw = document.getElementById("gridWrap");
@@ -243,9 +263,8 @@
       th.title = `${p.part_no} · ${p.seong || ""}${p.size ? " · " + p.size : ""}${p.yeolsu ? " · " + p.yeolsu : ""}${p.to ? " · TO " + p.to : ""}`;
       th.innerHTML =
         `<span class="pn">${escAttr(p.part_no)}</span>` +
-        `<span class="sz">${escAttr(p.size || "")}</span>` +
-        `<span class="sg" title="${escAttr(p.seong || "")}">${escAttr(p.seong || "")}</span>` +
-        `<button class="memo-btn lm-btn ${store.note("lm:" + p.id) ? "has-dot" : "empty"}" data-linememo="${escAttr(p.id)}" title="라인 메모">📝</button>`;
+        `<span class="sz">${fmtSize(p.size)}</span>` +
+        `<span class="sg">${escAttr(p.seong || "")}</span>`;
       pr.appendChild(th);
     });
     thead.appendChild(pr);
@@ -283,14 +302,14 @@
       });
     });
 
+    // 하부접점 (타공현황보다 위로)
+    tbody.appendChild(contactRow(parts, "lower", "하부접점"));
+
     // 타공현황(바닥 완료 카운트)
     const cr = document.createElement("tr"); cr.className = "count";
     cr.innerHTML = `<td class="rl floor" colspan="2">타공<br>현황</td>`;
     parts.forEach(p => { const td = document.createElement("td"); td.dataset.countPart = p.id; td.dataset.part = p.id; setCount(td, p.id); cr.appendChild(td); });
     tbody.appendChild(cr);
-
-    // 하부접점
-    tbody.appendChild(contactRow(parts, "lower", "하부접점"));
 
     tbl.appendChild(tbody);
     gridEl.innerHTML = ""; gridEl.appendChild(tbl);
@@ -329,10 +348,14 @@
     let st = c.status; if (st === "no_beam") st = "none";   // 횡주간없음 → 해당없음으로 통일(흰색)
     td.className = "c"; td.dataset.key = k;
     td.style.background = effColor({ status: st, d: c.d });
-    td.innerHTML = (st !== "none" && c.qd != null && c.qd !== "") ? `<span class="q">${c.qd}</span>` : "";
+    let inner = (st !== "none" && c.qd != null && c.qd !== "") ? `<span class="q">${c.qd}</span>` : "";
+    const phx = (st === "scaffold_interf") ? store.note("phx:" + k) : "";   // 비계 간섭 단계(PH2/PH4)
+    if (phx) inner += `<span class="phx">${escAttr(phx)}</span>`;
+    td.innerHTML = inner;
     const tm = store.note("wt:" + k);   // 작업팀(선택) → 툴팁
-    td.title = tm ? "작업팀: " + tm : "";
-    if (diffOn && c.d === TODAY && DIFF_STATUS.has(st)) td.classList.add("diffmark");
+    td.title = (tm ? "작업팀: " + tm : "") + (phx ? (tm ? " · " : "") + "비계 " + phx : "");
+    // 전일대비(오늘) 또는 날짜네비(선택일)에 변경된 설치·간섭 칸 강조
+    if (DIFF_STATUS.has(st) && ((diffOn && c.d === TODAY) || (viewDate && c.d === viewDate))) td.classList.add("diffmark");
     if (store.isPending(k)) td.classList.add("unsaved");   // 저장 대기 표시
   }
 
@@ -353,7 +376,7 @@
 
   // 범례 표(색·라벨)와 갯수를 한 칸에 통합 + 감추기. 진행바는 기설치/신규 구분.
   // 모바일에선 범례·갯수(해당없음 포함) 기본 접힘. 저장된 선택이 있으면 그걸 우선.
-  let legendHidden = (function () { const v = localStorage.getItem("ds_legend_hidden"); return v == null ? window.matchMedia("(max-width:760px)").matches : v === "1"; })();
+  let legendHidden = localStorage.getItem("ds_legend_hidden") === "1";   // 기본 펼침(명시적으로 숨긴 경우만 접힘)
   const LEGEND_ORDER = ["not_installed", "install_done", "drill_done", "predrill_duct", "predrill_floor", "today_install", "today_drill", "etc_interf", "scaffold_interf", "none"];
   function buildStatusStrip(parts) {
     const strip = document.getElementById("statusStrip"); if (!strip) return;
@@ -370,24 +393,28 @@
     // 기설치(pre)와 금번 신규완료(new)를 진행바에서 색으로 구분
     const ductPre = cnt.predrill_duct || 0, ductNew = cnt.install_done || 0;
     const floorPre = cnt.predrill_floor || 0, floorNew = cnt.drill_done || 0;
+    // 퍼센트는 기설치(pre) 제외 — 금번 신규 완료만 반영. 기설치 수량은 참고로 별도 표기.
     const prog = (label, cls, pre, nw, tot) =>
       `<div class="prog"><span class="pl">${label}</span>` +
-      `<div class="prog-bar ${cls}" title="기설치 ${pre} · 신규 ${nw} / 전체 ${tot}"><i class="seg-pre" style="width:${pct(pre, tot)}%"></i><i class="seg-new" style="width:${pct(nw, tot)}%"></i></div>` +
-      `<span class="prog-num">${pct(pre + nw, tot)}% <b>${pre + nw}</b>/${tot}<em> 기${pre}·신${nw}</em></span></div>`;
+      `<div class="prog-bar ${cls}" title="신규 ${nw} / 전체 ${tot} · 기설치 ${pre} 별도"><i class="seg-new" style="width:${pct(nw, tot)}%"></i></div>` +
+      `<span class="prog-num">${pct(nw, tot)}% <b>${nw}</b>/${tot}<em> 기설치 ${pre}</em></span></div>`;
     const chip = key => {
       const n = cnt[key] || 0;
       const sw = key === "no_beam" ? `<span class="sw xbeam"></span>` : `<span class="sw" style="background:${key === "none" ? "#fff" : STCOLOR[key]}"></span>`;
       return `<span class="chip"><span class="sw-wrap">${sw}</span>${STLABEL[key]}${STAUTO[key] ? ` <em class="auto-tag">자동</em>` : ""}${key === "none" ? "" : ` <b>${n}</b>`}</span>`;
     };
+    // 게이지+범례를 한 묶음(legend-collapse)으로 — 범례·갯수 토글로 함께 접힘
     strip.innerHTML =
-      `<button id="legendToggle" class="legend-toggle" title="범례·갯수 접기/펴기">${legendHidden ? "▸" : "▾"} 범례·갯수</button>` +
-      prog("덕트설치", "duct", ductPre, ductNew, dT) +
-      prog("바닥타공", "floor", floorPre, floorNew, fT) +
-      `<span class="sep"></span>` +
-      `<div class="chips ${legendHidden ? "hidden" : ""}">` + LEGEND_ORDER.map(chip).join("") + `</div>`;
+      `<button id="legendToggle" class="legend-toggle" title="범례·갯수·게이지 접기/펴기">${legendHidden ? "▸" : "▾"} 범례·갯수</button>` +
+      `<div class="legend-collapse ${legendHidden ? "hidden" : ""}">` +
+        prog("덕트설치", "duct", ductPre, ductNew, dT) +
+        prog("바닥타공", "floor", floorPre, floorNew, fT) +
+        `<span class="sep"></span>` +
+        `<div class="chips">` + LEGEND_ORDER.map(chip).join("") + `</div>` +
+      `</div>`;
     document.getElementById("legendToggle").onclick = () => {
       legendHidden = !legendHidden; localStorage.setItem("ds_legend_hidden", legendHidden ? "1" : "0");
-      strip.querySelector(".chips").classList.toggle("hidden", legendHidden);
+      strip.querySelector(".legend-collapse").classList.toggle("hidden", legendHidden);
       document.getElementById("legendToggle").textContent = (legendHidden ? "▸" : "▾") + " 범례·갯수";
     };
   }
@@ -440,11 +467,22 @@
       let body = `<div class="ed-rh"><span class="lname">${def.title || def.layer}</span></div>`;
       body += `<div class="ed-chips">` + optsFor(def.layer).map(l =>
         `<button class="chip ${cur === l.key ? "cur" : ""}" data-status="${l.key}"><span class="sw" style="background:${l.color}"></span>${l.label}</button>`).join("") + `</div>`;
+      // 비계 간섭이면 PH 단계(PH2/PH4) 추가 선택
+      if (cur === "scaffold_interf") {
+        const phv = store.note("phx:" + k);
+        body += `<div class="ed-phx"><label>비계 단계</label><span class="seg phx-seg">` +
+          ["PH2", "PH4"].map(ph => `<button data-phx="${ph}" class="${phv === ph ? "on" : ""}">${ph}</button>`).join("") + `</span></div>`;
+      }
       // 작업팀(선택) — 덕트설치·타공·횡주 누가 했는지
-      body += `<div class="ed-team"><label>작업팀 <span class="opt">(선택)</span></label><input class="team-inp" value="${escAttr(store.note("wt:" + k))}" placeholder="예: ○○설비팀" /></div>`;
+      body += `<div class="ed-team"><label>작업팀 <span class="opt">(선택)</span></label><input class="team-inp" value="${escAttr(store.note("wt:" + k))}" placeholder="예: ㅇㅇㅇ팀" /></div>`;
       row.innerHTML = body;
       // 상태칩
       row.querySelectorAll(".chip").forEach(b => b.onclick = () => setLayer(def.layer, b.dataset.status));
+      // 비계 PH 단계(토글)
+      row.querySelectorAll("[data-phx]").forEach(b => b.onclick = () => {
+        const nv = store.note("phx:" + k) === b.dataset.phx ? "" : b.dataset.phx;
+        store.setNote("phx:" + k, nv, meta()); renderEditor();
+      });
       // 작업팀 입력
       const ti = row.querySelector(".team-inp");
       if (ti) ti.onchange = () => store.setNote("wt:" + k, ti.value.trim(), meta());
@@ -572,9 +610,10 @@
     if (pw !== GONGGU_PW[loginGg]) { loginErr("비밀번호가 올바르지 않습니다"); document.getElementById("pwInput").focus(); return; }
     USER = { name: n, team: loginGg }; localStorage.setItem("ds_user", JSON.stringify(USER)); setUserLabel();
     const names = rosterOf(loginGg); if (names.indexOf(n) < 0) { names.push(n); store.setNote("roster:" + loginGg, JSON.stringify(names), USER); }
+    store.trackPresence();   // 접속 인원 이름 갱신
     closeModals();
   };
-  document.getElementById("logoutBtn").onclick = () => { USER = null; localStorage.removeItem("ds_user"); setUserLabel(); closeModals(); };
+  document.getElementById("logoutBtn").onclick = () => { USER = null; localStorage.removeItem("ds_user"); setUserLabel(); store.trackPresence(); closeModals(); };
   document.getElementById("userBtn").onclick = openLogin;
 
   const dashModal = document.getElementById("dashModal");
@@ -590,7 +629,6 @@
 
   /* ---------- 격자 클릭 ---------- */
   gridEl.addEventListener("click", e => {
-    const lb = e.target.closest("[data-linememo]"); if (lb) { const pid = lb.dataset.linememo; openText("lm:" + pid, `${partById[pid].part_no} 라인 메모`); return; }
     const mb = e.target.closest("[data-memo]"); if (mb) { openText("fm:all:" + mb.dataset.memo, `${mb.dataset.memo} 층 메모`); return; }
     const ct = e.target.closest("[data-contact]"); if (ct) { const up = ct.dataset.contact.indexOf("uc:") === 0; const pid = ct.dataset.contact.split(":")[1]; openText(ct.dataset.contact, `${partById[pid].part_no} ${up ? "상부접점" : "하부접점"}`, { doneKey: (up ? "ucz:" : "dcz:") + pid }); return; }
     const td = e.target.closest("td.c"); if (td && td.dataset.key) { const [pid, floor] = td.dataset.key.split("|"); openEditor(pid, floor); }
@@ -662,6 +700,40 @@
     renderGrid();
     toast(diffOn ? `오늘(${TODAY}) 변경된 설치·간섭 칸 표시` : "전일대비 표시 끔");
   };
+
+  /* ---------- 날짜 네비(◀▶) — 날짜별 변경 확인 ---------- */
+  // 변경(d)이 기록된 날짜 목록(오래된→최신)
+  function changeDates() {
+    const set = new Set();
+    SEED.parts.forEach(p => SEED.floors.forEach(f => LAYERS.forEach(L => {
+      const k = keyOf(p.id, f, L); if (!seedCell[k]) return;
+      const d = store.cell(k).d; if (d) set.add(d);
+    })));
+    return [...set].sort();
+  }
+  function dateChangedCount(d) {
+    let n = 0;
+    SEED.parts.forEach(p => SEED.floors.forEach(f => LAYERS.forEach(L => {
+      const k = keyOf(p.id, f, L); if (!seedCell[k]) return;
+      const c = store.cell(k); let st = c.status === "no_beam" ? "none" : c.status;
+      if (c.d === d && DIFF_STATUS.has(st)) n++;
+    })));
+    return n;
+  }
+  function buildDateNav() {
+    const nav = document.getElementById("dateNav"); if (!nav) return;
+    const lbl = document.getElementById("dateLabel"), prev = document.getElementById("datePrev"), next = document.getElementById("dateNext");
+    const seq = [null, ...changeDates()];     // null = 기준(강조 없음)
+    let idx = seq.indexOf(viewDate); if (idx < 0) { idx = 0; viewDate = null; }
+    nav.classList.toggle("active", viewDate != null);
+    lbl.textContent = viewDate == null
+      ? "기준 " + (SEED.updated || "")
+      : viewDate + (viewDate === TODAY ? " (오늘)" : "") + " · " + dateChangedCount(viewDate) + "건";
+    prev.disabled = idx <= 0;
+    next.disabled = idx >= seq.length - 1;
+    prev.onclick = () => { if (idx > 0) { viewDate = seq[idx - 1]; renderGrid(); buildDateNav(); } };
+    next.onclick = () => { if (idx < seq.length - 1) { viewDate = seq[idx + 1]; renderGrid(); buildDateNav(); } };
+  }
 
   /* ---------- 대시보드 ---------- */
   function blankG() { return { pre: 0, nw: 0, today: 0, tot: 0 }; }
@@ -843,25 +915,24 @@
         if (el) paintContact(el, up, pid);
       }
       else if (nk.indexOf("fm:") === 0) { const floor = nk.split(":")[2]; const el = gridEl.querySelector(`[data-memo="${cssEsc(floor)}"]`); if (el) el.className = "memo-btn " + (store.note(nk) ? "has-dot" : "empty"); }
-      else if (nk.indexOf("lm:") === 0) { const pid = nk.slice(3); const el = gridEl.querySelector(`[data-linememo="${cssEsc(pid)}"]`); if (el) el.className = "memo-btn lm-btn " + (store.note(nk) ? "has-dot" : "empty"); }
+      else if (nk.indexOf("phx:") === 0) refreshCell(nk.slice(4));   // 비계 PH 단계 변경 → 셀 배지 갱신
       else if (nk.indexOf("ph:") === 0 && editorOpen() && nk === "ph:" + edPart + ":" + edFloor) renderPhotos();
     } else {
-      refreshCell(k); buildStatusStrip(currentParts);
+      refreshCell(k); buildStatusStrip(currentParts); buildDateNav();
       if (editorOpen() && k.indexOf(edPart + "|" + edFloor + "|") === 0) updatePreview();
     }
   });
 
   /* ---------- 부트 ---------- */
   async function boot() {
-    if (SEED.updated) document.getElementById("upd").textContent = "기준 " + SEED.updated;
     if (window.matchMedia("(max-width:760px)").matches) cellPx = 42;   // 모바일 기본 줌 크게
-    buildZoneTabs(); setVars(); renderGrid();
+    buildZoneTabs(); setVars(); renderGrid(); buildDateNav();
     setUserLabel();
     if (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase) {
       try {
         store.attach(await cloudBackend()); store.mode = "cloud";
         store.reapplyPending();            // 직전 세션의 미저장분 복원(서버값 덮어쓰기 방지)
-        connBase = { text: "실시간", cls: "conn cloud" }; paintConn(); renderGrid();
+        connBase = { text: "실시간", cls: "conn cloud" }; paintConn(); renderGrid(); buildDateNav();
         store.flush();                     // 미저장분 재전송
       }
       catch (e) { console.error(e); store.attach(localBackend()); connBase = { text: "로컬(연결실패)", cls: "conn err" }; paintConn(); toast("클라우드 연결 실패 → 로컬"); renderGrid(); }

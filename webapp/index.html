@@ -15,13 +15,18 @@
 </head>
 <body>
   <header id="topbar">
-    <div class="brand">P4 Ph2 입상덕트 설치현황 <span id="upd" class="upd"></span></div>
+    <div class="brand">P4 Ph2 입상덕트 설치현황</div>
     <div id="zoneTabs" class="zone-tabs"></div>
     <div class="search-wrap">
       <input id="searchInput" type="search" placeholder="성상·SIZE·덕트NO 검색 (예: 1200A, ACID)" />
       <button id="searchClear" title="검색 지우기" class="hidden">✕</button>
     </div>
     <div class="spacer"></div>
+    <div id="dateNav" class="date-nav" title="화살표로 날짜별 변경 확인">
+      <button id="datePrev" title="이전 날짜">◀</button>
+      <span id="dateLabel" class="date-label"></span>
+      <button id="dateNext" title="다음 날짜">▶</button>
+    </div>
     <button id="dashBtn" class="btn-dash" title="대시보드">📊 대시보드</button>
     <button id="histBtn" class="btn-dash" title="변경 이력 (누가·언제·무엇을)">📜 이력</button>
     <button id="diffBtn" class="btn-diff" title="전일 대비 변경 표시 (설치·간섭)">전일대비</button>
@@ -32,6 +37,7 @@
     </div>
     <button id="exportBtn" class="btn-export" title="엑셀로 내보내기">엑셀 ⬇</button>
     <button id="userBtn" class="btn-user" title="사용자 변경"><span id="userLabel">사용자</span></button>
+    <span id="presence" class="presence hidden" title="현재 접속 인원">👥 0</span>
     <span id="connState" class="conn local" title="저장 모드">로컬</span>
   </header>
 
@@ -64,15 +70,15 @@
         </div>
         <div class="ed-field">
           <label>잔여작업 메모</label>
-          <textarea id="edMemo" rows="2" placeholder="예: 보 간섭 해소 후 입상 연결 예정"></textarea>
+          <textarea id="edMemo" rows="2" placeholder="예: 실측분 설치 예정"></textarea>
         </div>
         <div class="ed-field">
           <label>사진 (이 라인·층)</label>
           <div id="edPhotos" class="ed-photos"></div>
           <div id="photoDrop" class="photo-drop">
-            <input id="photoInput" type="file" accept="image/*" capture="environment" multiple hidden />
-            <button id="photoBtn" class="btn-photo">📷 촬영·업로드</button>
-            <span class="drop-hint">또는 사진을 끌어다 놓거나 붙여넣기(Ctrl+V)</span>
+            <input id="photoInput" type="file" accept="image/*" multiple hidden />
+            <button id="photoBtn" class="btn-photo">🖼 사진 선택·업로드</button>
+            <span class="drop-hint">갤러리에서 사진을 선택하세요 (끌어다 놓기·붙여넣기 Ctrl+V 가능)</span>
           </div>
           <span id="photoHint" class="photo-hint"></span>
         </div>
