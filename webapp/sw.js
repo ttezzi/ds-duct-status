@@ -2,7 +2,7 @@
    · 앱 셸(같은 출처): network-first → 실패 시 캐시 (배포 즉시 최신 반영 + 오프라인 폴백)
    · CDN 라이브러리(버전 고정): cache-first
    · Supabase API/실시간: SW 미개입(항상 네트워크) */
-const C = "ds-v1";
+const C = "ds-v2";
 const SHELL = ["./", "./index.html", "./app.js", "./styles.css", "./seed.js", "./config.js", "./manifest.webmanifest", "./icon.svg"];
 const CDN = [
   "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js",

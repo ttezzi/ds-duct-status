@@ -178,6 +178,9 @@
 
   let USER = JSON.parse(localStorage.getItem("ds_user") || "null");
   const meta = () => USER || {};
+  // 공구별 비밀번호(클라이언트 측 화면 잠금 — 캐주얼 오편집 방지 + 작성자 기록용)
+  const GONGGU_PW = { "1공구": "1111", "2공구": "2222", "3공구": "3333", "4공구": "4444", "5공구": "5555" };
+  const GONGGU = Object.keys(GONGGU_PW);
 
   // 저장모드 표시 + 미저장 대기 배지
   let connBase = { text: "로컬", cls: "conn local" };
@@ -194,8 +197,14 @@
   }
 
   /* ---------- 상태 ---------- */
-  partsByZone["all"] = SEED.parts;
-  let currentZone = "all";          // 기본보기 = 전체
+  // 구역 다중 토글 — 켠 구역만 표시(기본 전부 ON), localStorage 로 지속
+  let enabledZones;
+  try {
+    const z = JSON.parse(localStorage.getItem("ds_zones") || "null");
+    enabledZones = new Set(Array.isArray(z) ? z.filter(x => SEED.zones.includes(x)) : SEED.zones);
+  } catch (e) { enabledZones = new Set(SEED.zones); }
+  if (!enabledZones.size) enabledZones = new Set(SEED.zones);
+  const saveZones = () => localStorage.setItem("ds_zones", JSON.stringify([...enabledZones]));
   let searchQ = "";
   let diffOn = false;               // 전일대비 표시
   let currentParts = [];
@@ -209,7 +218,7 @@
 
   function computeParts() {
     if (searchQ) return SEED.parts.filter(p => matchPart(p, searchQ));
-    return partsByZone[currentZone] || [];
+    return SEED.parts.filter(p => enabledZones.has(p.zone));   // SEED.parts 가 구역 순서 → 정렬 유지
   }
 
   /* ---------- 렌더 ---------- */
@@ -246,7 +255,6 @@
     tbl.appendChild(thead);
 
     const tbody = document.createElement("tbody");
-    const zoneForMemo = () => searchQ ? "검색" : currentZone;
 
     // 상부접점
     tbody.appendChild(contactRow(parts, "upper", "상부접점"));
@@ -262,7 +270,7 @@
         const mid = li === present.indexOf("입상") || (present.indexOf("입상") < 0 && li === Math.floor((present.length - 1) / 2));
         const fl = document.createElement("td"); fl.className = "rl floor";
         if (mid) {
-          const hasM = !!store.note("fm:" + zoneForMemo() + ":" + floor);
+          const hasM = !!store.note("fm:all:" + floor);   // 층 메모 키 전역화(구역 다중토글 이후)
           fl.innerHTML = `<span class="fl-name">${floor}</span><button class="memo-btn ${hasM ? "has-dot" : "empty"}" data-memo="${floor}" title="층 메모">📝</button>`;
         }
         tr.appendChild(fl);
@@ -346,7 +354,8 @@
   }
 
   // 범례 표(색·라벨)와 갯수를 한 칸에 통합 + 감추기. 진행바는 기설치/신규 구분.
-  let legendHidden = localStorage.getItem("ds_legend_hidden") === "1";
+  const _lh = localStorage.getItem("ds_legend_hidden");
+  let legendHidden = _lh == null ? window.matchMedia("(max-width:760px)").matches : _lh === "1";   // 저장값 없으면 모바일은 기본 접힘
   const LEGEND_ORDER = ["not_installed", "install_done", "drill_done", "predrill_duct", "predrill_floor", "today_install", "today_drill", "etc_interf", "scaffold_interf", "none"];
   function buildStatusStrip(parts) {
     const strip = document.getElementById("statusStrip"); if (!strip) return;
@@ -370,7 +379,8 @@
     const chip = key => {
       const n = cnt[key] || 0;
       const sw = key === "no_beam" ? `<span class="sw xbeam"></span>` : `<span class="sw" style="background:${key === "none" ? "#fff" : STCOLOR[key]}"></span>`;
-      return `<span class="chip"><span class="sw-wrap">${sw}</span>${STLABEL[key]}${STAUTO[key] ? ` <em class="auto-tag">자동</em>` : ""} <b>${n}</b></span>`;
+      const num = key === "none" ? "" : ` <b>${n}</b>`;   // 해당없음은 갯수 숫자 생략
+      return `<span class="chip"><span class="sw-wrap">${sw}</span>${STLABEL[key]}${STAUTO[key] ? ` <em class="auto-tag">자동</em>` : ""}${num}</span>`;
     };
     strip.innerHTML =
       `<button id="legendToggle" class="legend-toggle" title="범례·갯수 접기/펴기">${legendHidden ? "▸" : "▾"} 범례·갯수</button>` +
@@ -400,7 +410,7 @@
   const hasLayer = (pid, f, l) => !!seedCell[keyOf(pid, f, l)];
 
   function openEditor(pid, floor) {
-    if (!USER) { openName(); return; }
+    if (!USER) { openLogin(); return; }
     edPart = pid; edFloor = floor;
     const p = partById[pid];
     document.getElementById("edTitle").textContent = `${p.part_no} · ${floor}`;
@@ -508,7 +518,7 @@
   function paintTextSeg() { textStatusEl.querySelectorAll("[data-cstat]").forEach(b => b.classList.toggle("on", (b.dataset.cstat === "done") === textDone)); }
   textStatusEl.querySelectorAll("[data-cstat]").forEach(b => b.onclick = () => { textDone = b.dataset.cstat === "done"; paintTextSeg(); });
   function openText(key, title, opts) {
-    if (!USER) { openName(); return; }
+    if (!USER) { openLogin(); return; }
     textKey = key; document.getElementById("textTitle").textContent = title;
     document.getElementById("textArea").value = store.note(key);
     if (opts && opts.doneKey) { textDoneKey = opts.doneKey; textDone = store.note(opts.doneKey) === "1"; textStatusEl.classList.remove("hidden"); paintTextSeg(); }
@@ -526,16 +536,67 @@
     closeModals();
   };
 
-  /* ---------- 이름/팀 ---------- */
+  /* ---------- 로그인(공구·이름·비번) ---------- */
+  // 읽기는 누구나, 수정만 로그인. 공구는 기록용(공구5·구역4라 1:1 매핑 없음). 명단은 Supabase(notes) 공유.
   const nameModal = document.getElementById("nameModal");
-  function openName() { nameModal.classList.remove("hidden"); }
-  document.getElementById("nameSave").onclick = () => {
-    const n = document.getElementById("nameInput").value.trim(), t = document.getElementById("teamInput").value.trim();
-    if (!n) { document.getElementById("nameInput").focus(); return; }
-    USER = { name: n, team: t }; localStorage.setItem("ds_user", JSON.stringify(USER));
-    document.getElementById("userLabel").textContent = t ? `${n}(${t})` : n; closeModals();
-  };
-  document.getElementById("userBtn").onclick = () => { if (USER) { document.getElementById("nameInput").value = USER.name; document.getElementById("teamInput").value = USER.team || ""; } openName(); };
+  let loginGonggu = null, loginName = null;
+  function rosterOf(g) { try { return JSON.parse(store.note("roster:" + g) || "[]"); } catch (e) { return []; } }
+  function setUserLabel() { document.getElementById("userLabel").textContent = USER ? `${USER.name}(${USER.team})` : "로그인"; }
+  function renderGongguBtns() {
+    const wrap = document.getElementById("gongguBtns"); if (!wrap) return; wrap.innerHTML = "";
+    GONGGU.forEach(g => {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = g;
+      b.className = "gonggu-btn" + (loginGonggu === g ? " active" : "");
+      b.onclick = () => { loginGonggu = g; loginName = null; document.getElementById("loginError").textContent = ""; renderGongguBtns(); renderRoster(); };
+      wrap.appendChild(b);
+    });
+  }
+  function renderRoster() {
+    const wrap = document.getElementById("rosterChips"); if (!wrap) return; wrap.innerHTML = "";
+    if (!loginGonggu) { wrap.innerHTML = `<span class="roster-hint">공구를 먼저 선택하세요</span>`; return; }
+    const names = rosterOf(loginGonggu);
+    if (!names.length) { wrap.innerHTML = `<span class="roster-hint">등록된 이름이 없습니다 — 아래에 새로 입력하세요</span>`; return; }
+    names.forEach(nm => {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = nm;
+      b.className = "roster-chip" + (loginName === nm ? " active" : "");
+      b.onclick = () => { loginName = nm; document.getElementById("newNameInput").value = ""; renderRoster(); };
+      wrap.appendChild(b);
+    });
+  }
+  function openLogin() {
+    loginGonggu = USER ? USER.team : null; loginName = USER ? USER.name : null;
+    renderGongguBtns(); renderRoster();
+    document.getElementById("newNameInput").value = "";
+    document.getElementById("pwInput").value = "";
+    document.getElementById("loginError").textContent = "";
+    document.getElementById("logoutBtn").classList.toggle("hidden", !USER);
+    nameModal.classList.remove("hidden");
+  }
+  function loginSubmit() {
+    const err = document.getElementById("loginError");
+    const g = loginGonggu;
+    const typed = document.getElementById("newNameInput").value.trim();
+    const name = typed || loginName;
+    const pw = document.getElementById("pwInput").value;
+    if (!g) { err.textContent = "공구를 선택하세요."; return; }
+    if (!name) { err.textContent = "이름을 선택하거나 입력하세요."; return; }
+    if (pw !== GONGGU_PW[g]) { err.textContent = "비밀번호가 올바르지 않습니다."; return; }
+    USER = { name, team: g }; localStorage.setItem("ds_user", JSON.stringify(USER));
+    setUserLabel();
+    const names = rosterOf(g);   // 새 이름이면 공유 명단에 추가
+    if (!names.includes(name)) { names.push(name); store.setNote("roster:" + g, JSON.stringify(names), meta()); }
+    closeModals();
+    toast(`${name}(${g}) 로그인`);
+  }
+  function logout() {
+    USER = null; localStorage.removeItem("ds_user");
+    setUserLabel(); closeModals(); toast("로그아웃되었습니다 (읽기 전용)");
+  }
+  document.getElementById("loginSubmit").onclick = loginSubmit;
+  document.getElementById("newNameInput").addEventListener("keydown", e => { if (e.key === "Enter") loginSubmit(); });
+  document.getElementById("pwInput").addEventListener("keydown", e => { if (e.key === "Enter") loginSubmit(); });
+  document.getElementById("logoutBtn").onclick = logout;
+  document.getElementById("userBtn").onclick = openLogin;
 
   const dashModal = document.getElementById("dashModal");
   const histModal = document.getElementById("histModal");
@@ -544,14 +605,14 @@
     gridEl.querySelectorAll("td.sel").forEach(e => e.classList.remove("sel")); textKey = null; edPart = null;
   }
   document.querySelectorAll("[data-close]").forEach(b => b.onclick = closeModals);
-  [editorModal, textModal, dashModal, histModal].forEach(m => m.addEventListener("click", e => { if (e.target === m) closeModals(); }));
+  [editorModal, textModal, nameModal, dashModal, histModal].forEach(m => m.addEventListener("click", e => { if (e.target === m) closeModals(); }));
   // Esc 로 열린 모달 닫기(접근성)
   document.addEventListener("keydown", e => { if (e.key === "Escape" && [editorModal, textModal, nameModal, dashModal, histModal].some(m => !m.classList.contains("hidden"))) closeModals(); });
 
   /* ---------- 격자 클릭 ---------- */
   gridEl.addEventListener("click", e => {
     const lb = e.target.closest("[data-linememo]"); if (lb) { const pid = lb.dataset.linememo; openText("lm:" + pid, `${partById[pid].part_no} 라인 메모`); return; }
-    const mb = e.target.closest("[data-memo]"); if (mb) { openText("fm:" + (searchQ ? "검색" : currentZone) + ":" + mb.dataset.memo, `${searchQ ? "" : currentZone + " "}${mb.dataset.memo} 층 메모`); return; }
+    const mb = e.target.closest("[data-memo]"); if (mb) { openText("fm:all:" + mb.dataset.memo, `${mb.dataset.memo} 층 메모`); return; }
     const ct = e.target.closest("[data-contact]"); if (ct) { const up = ct.dataset.contact.indexOf("uc:") === 0; const pid = ct.dataset.contact.split(":")[1]; openText(ct.dataset.contact, `${partById[pid].part_no} ${up ? "상부접점" : "하부접점"}`, { doneKey: (up ? "ucz:" : "dcz:") + pid }); return; }
     const td = e.target.closest("td.c"); if (td && td.dataset.key) { const [pid, floor] = td.dataset.key.split("|"); openEditor(pid, floor); }
   });
@@ -580,20 +641,33 @@
     gridEl.querySelectorAll(`[data-part="${cssEsc(pid)}"]`).forEach(e => e.classList.add("hlpart"));
   }
 
-  /* ---------- 구역 탭 ---------- */
+  /* ---------- 구역 다중 토글 ---------- */
+  function clearSearch() {
+    if (!searchQ && !searchInput.value) return;
+    searchQ = ""; searchInput.value = ""; searchClear.classList.add("hidden");
+  }
   function buildZoneTabs() {
     const wrap = document.getElementById("zoneTabs"); wrap.innerHTML = "";
-    SEED.zones.concat(["all"]).forEach(z => {
+    SEED.zones.forEach(z => {
       const b = document.createElement("button");
-      b.textContent = z === "all" ? "전체" : z; if (z !== "all") b.dataset.z = zoneIdx[z];
-      b.className = (!searchQ && z === currentZone) ? "active" : "";
-      b.onclick = () => { searchQ = ""; document.getElementById("searchInput").value = ""; document.getElementById("searchClear").classList.add("hidden"); currentZone = z === "all" ? "all" : z; if (z === "all") renderAll(); else { buildZoneTabs(); renderGrid(); } gw.scrollTo(0, 0); };
+      b.textContent = z; b.dataset.z = zoneIdx[z];
+      b.className = (!searchQ && enabledZones.has(z)) ? "active" : "";
+      b.onclick = () => {
+        const turningOff = enabledZones.has(z);
+        if (turningOff && enabledZones.size <= 1) { toast("최소 한 구역은 표시해야 합니다"); return; }
+        clearSearch();
+        if (turningOff) enabledZones.delete(z); else enabledZones.add(z);
+        saveZones(); buildZoneTabs(); renderGrid(); gw.scrollTo(0, 0);
+      };
       wrap.appendChild(b);
     });
+    // 전체 ON
+    const all = document.createElement("button");
+    all.textContent = "전체 ON";
+    all.className = "zone-all" + (!searchQ && enabledZones.size === SEED.zones.length ? " active" : "");
+    all.onclick = () => { clearSearch(); enabledZones = new Set(SEED.zones); saveZones(); buildZoneTabs(); renderGrid(); gw.scrollTo(0, 0); };
+    wrap.appendChild(all);
   }
-  // '전체' 는 모든 구역 파트
-  function renderAll() { currentZone = "all"; partsByZone["all"] = SEED.parts; buildZoneTabs(); renderGrid(); }
-  partsByZone["all"] = SEED.parts;
 
   /* ---------- 검색 ---------- */
   const searchInput = document.getElementById("searchInput"), searchClear = document.getElementById("searchClear");
@@ -677,7 +751,7 @@
   document.getElementById("dashBtn").onclick = openDash;
 
   /* ---------- 변경 이력 ---------- */
-  let histTodayOnly = false;
+  let histDateSel = "all";   // "all" 또는 "YYYY-MM-DD"
   async function openHist() {
     if (!store.cloud()) { toast("변경 이력은 실시간(클라우드) 모드에서만 조회됩니다"); return; }
     const body = document.getElementById("histBody");
@@ -690,21 +764,30 @@
   }
   function renderHist(rows) {
     const body = document.getElementById("histBody");
-    const list = histTodayOnly ? rows.filter(r => String(r.ts || "").slice(0, 10) === TODAY) : rows;
+    const dayOf = r => String(r.ts || "").slice(0, 10);
+    const days = []; rows.forEach(r => { const d = dayOf(r); if (d && days.indexOf(d) < 0) days.push(d); });   // 최신순 유니크(rows 는 ts desc)
+    if (histDateSel !== "all" && days.indexOf(histDateSel) < 0) histDateSel = "all";
+    const list = histDateSel === "all" ? rows : rows.filter(r => dayOf(r) === histDateSel);
     const chip = st => (st == null || st === "")
       ? `<span class="hchip none">—</span>`
       : `<span class="hchip"><span class="sw" style="background:${st === "none" ? "#fff" : (STCOLOR[st] || "#fff")}"></span>${escAttr(STLABEL[st] || st)}</span>`;
     const fmtTs = ts => { const d = new Date(ts); const p = n => String(n).padStart(2, "0"); return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
     const cellLabel = key => { const a = String(key).split("|"), p = partById[a[0]]; return `${p ? p.part_no : a[0]} · ${a[1] || ""} · ${a[2] || ""}`; };
-    let html = `<div class="hist-bar"><button id="histTodayBtn" class="${histTodayOnly ? "on" : ""}">오늘만</button><span class="hist-count">${list.length}건</span></div>`;
-    if (!list.length) html += `<div class="hist-loading">이력이 없습니다.</div>`;
-    else html += `<div class="hist-list">` + list.map(r =>
+    const rowHtml = r =>
       `<div class="hist-row"><span class="ht">${fmtTs(r.ts)}</span>` +
       `<span class="hu">${escAttr(r.user_name || "?")}${r.team ? `<em>(${escAttr(r.team)})</em>` : ""}</span>` +
       `<span class="hc">${escAttr(cellLabel(r.cell_key))}</span>` +
-      `<span class="hs">${chip(r.old_status)}<i>→</i>${chip(r.new_status)}</span></div>`).join("") + `</div>`;
+      `<span class="hs">${chip(r.old_status)}<i>→</i>${chip(r.new_status)}</span></div>`;
+    const opts = `<option value="all">전체</option>` + days.map(d => `<option value="${d}"${d === histDateSel ? " selected" : ""}>${d}</option>`).join("");
+    let html = `<div class="hist-bar"><label class="hist-datelbl">일자 <select id="histDate">${opts}</select></label><span class="hist-count">${list.length}건</span></div>`;
+    if (!list.length) html += `<div class="hist-loading">이력이 없습니다.</div>`;
+    else if (histDateSel === "all") {   // 일자별 그룹 헤더
+      html += `<div class="hist-list">`; let cur = null;
+      list.forEach(r => { const d = dayOf(r); if (d !== cur) { cur = d; html += `<div class="hist-day">${d || "?"}</div>`; } html += rowHtml(r); });
+      html += `</div>`;
+    } else html += `<div class="hist-list">` + list.map(rowHtml).join("") + `</div>`;
     body.innerHTML = html;
-    const tb = document.getElementById("histTodayBtn"); if (tb) tb.onclick = () => { histTodayOnly = !histTodayOnly; renderHist(rows); };
+    const sel = document.getElementById("histDate"); if (sel) sel.onchange = () => { histDateSel = sel.value; renderHist(rows); };
   }
   document.getElementById("histBtn").onclick = openHist;
 
@@ -785,6 +868,7 @@
         const el = gridEl.querySelector(`[data-contact="${cssEsc((up ? "uc:" : "dc:") + pid)}"]`);
         if (el) paintContact(el, up, pid);
       }
+      else if (nk.indexOf("roster:") === 0) { if (!nameModal.classList.contains("hidden") && nk === "roster:" + loginGonggu) renderRoster(); }
       else if (nk.indexOf("fm:") === 0) { const floor = nk.split(":")[2]; const el = gridEl.querySelector(`[data-memo="${cssEsc(floor)}"]`); if (el) el.className = "memo-btn " + (store.note(nk) ? "has-dot" : "empty"); }
       else if (nk.indexOf("lm:") === 0) { const pid = nk.slice(3); const el = gridEl.querySelector(`[data-linememo="${cssEsc(pid)}"]`); if (el) el.className = "memo-btn lm-btn " + (store.note(nk) ? "has-dot" : "empty"); }
       else if (nk.indexOf("ph:") === 0 && editorOpen() && nk === "ph:" + edPart + ":" + edFloor) renderPhotos();
@@ -799,7 +883,7 @@
     if (SEED.updated) document.getElementById("upd").textContent = "기준 " + SEED.updated;
     if (window.matchMedia("(max-width:760px)").matches) cellPx = 42;   // 모바일 기본 줌 크게
     buildZoneTabs(); setVars(); renderGrid();
-    if (USER) document.getElementById("userLabel").textContent = USER.team ? `${USER.name}(${USER.team})` : USER.name;
+    setUserLabel();
     if (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase) {
       try {
         store.attach(await cloudBackend()); store.mode = "cloud";
@@ -811,7 +895,7 @@
     } else { store.attach(localBackend()); connBase = { text: "로컬", cls: "conn local" }; paintConn(); renderGrid(); }
     window.addEventListener("online", () => { toast("재연결 — 미저장분 저장 중"); store.flush(); });
     setInterval(() => store.flush(), 20000);   // 주기적 재시도
-    if (!USER) openName();
+    if (!USER) openLogin();   // 시작 시 로그인 안내(닫으면 읽기 전용)
   }
   boot();
 })();
