@@ -74,12 +74,13 @@ create policy "log_read"   on public.change_log for select using (true);
 insert into storage.buckets (id, name, public)
 values ('photos', 'photos', true)
 on conflict (id) do nothing;
--- 익명 업로드/조회 허용(현장 공유 링크용). 객체 DELETE 는 차단:
---   앱은 사진 삭제 시 스토리지 객체를 지우지 않고 메모의 참조만 제거하므로(app.js delPhoto)
---   delete 정책이 없어도 동작에 문제 없고, '전체 사진 일괄 삭제' 공격을 막는다.
+-- 익명 '업로드'만 허용(현장 공유 링크용).
+--  · 조회: public 버킷의 공개 URL(/object/public/)로 동작 → SELECT 정책 불필요.
+--    SELECT 정책을 두지 않음으로써 파일 '목록 열람(enumeration)'을 차단한다.
+--  · 삭제: 앱은 사진 삭제 시 객체를 지우지 않고 메모의 참조만 제거(app.js delPhoto)
+--    → DELETE 정책도 두지 않아 '전체 사진 일괄 삭제' 공격을 막는다(개별 사진 표시엔 무영향).
 drop policy if exists "photos_read"   on storage.objects;
-drop policy if exists "photos_insert" on storage.objects;
 drop policy if exists "photos_delete" on storage.objects;
-create policy "photos_read"   on storage.objects for select using (bucket_id = 'photos');
+drop policy if exists "photos_insert" on storage.objects;
 create policy "photos_insert" on storage.objects for insert with check (bucket_id = 'photos');
--- (photos delete 정책 없음 = 객체 삭제 불가)
+-- (photos read/delete 정책 없음 = 목록 열람·객체 삭제 불가, 개별 사진은 공개 URL로 정상 표시)
