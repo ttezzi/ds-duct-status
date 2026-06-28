@@ -44,6 +44,8 @@
 ## 저장 모드
 - `config.js` 비면 **localStorage**(단일기기), 채우면 **Supabase 실시간 공유**(여러 기기·변경이력).
 - Supabase: `webapp/supabase/schema.sql` 실행 → `config.js` 에 URL/anon key 입력. 변경분만 저장(기준은 seed).
+- **미저장 큐**: 저장 실패 시 변경분을 `localStorage("ds_pending_v1")` 에 보관 → 칸에 빨간 점선 + 상단 ⏳N 배지, `online`/20초 주기로 자동 재시도. 부팅 시 `reapplyPending()` 로 서버값 위에 복원(새로고침 손실 방지).
+- **RLS**: cells·photos **삭제 차단**(앱은 cells upsert만·사진은 참조만 제거). 쓰기 통제는 Netlify 접근제어/Supabase Auth 필요(schema.sql ※).
 
 ## 인터랙션 (v3)
 - 기본보기 = **전체 구역**. 셀 클릭 → **(라인+층) 통합 편집 모달**(횡주·입상·바닥 한 번에, 모바일 하단시트).

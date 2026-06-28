@@ -35,6 +35,8 @@ button{font-family:inherit;cursor:pointer}
 .btn-user{background:#4b5563}
 .conn{font-size:11px;padding:3px 7px;border-radius:6px;font-weight:700}
 .conn.local{background:#92400e;color:#fde68a}.conn.cloud{background:#065f46;color:#a7f3d0}.conn.err{background:#7f1d1d;color:#fecaca}
+.conn.has-pending{background:#b45309;color:#fff;animation:pendpulse 1.4s ease-in-out infinite}
+@keyframes pendpulse{50%{opacity:.5}}
 
 /* 범례 */
 .legend-bar{display:flex;gap:9px;flex-wrap:wrap;padding:5px 10px;background:#fff;border-bottom:1px solid var(--line);flex:0 0 auto;font-size:12px}
@@ -196,6 +198,9 @@ table.elev th,table.elev td{border-right:1px solid var(--line2);border-bottom:1p
 /* 전일대비/일별 변경 마커 */
 .elev td.c.diffmark{outline:2px solid #f59e0b;outline-offset:-2px;z-index:4}
 .elev td.c.diffmark::before{content:"";position:absolute;top:0;right:0;border:5px solid transparent;border-top-color:#f59e0b;border-right-color:#f59e0b;z-index:4}
+/* 미저장(저장 대기) 마커 — 좌하단 빨강 삼각 + 점선 테두리 */
+.elev td.c.unsaved{outline:2px dashed #ef4444;outline-offset:-2px;z-index:4}
+.elev td.c.unsaved::after{content:"";position:absolute;left:0;bottom:0;border:5px solid transparent;border-bottom-color:#ef4444;border-left-color:#ef4444;z-index:4;animation:pendpulse 1.4s ease-in-out infinite}
 
 /* ===== 통합 편집 모달 ===== */
 .modal-card.editor{width:min(440px,96vw);display:flex;flex-direction:column;max-height:90vh}

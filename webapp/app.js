@@ -35,7 +35,11 @@
   /* ---------- Store ---------- */
   function makeStore() {
     const over = new Map(), notes = new Map(), subs = [];
+    const pending = new Map();            // 미저장(저장 실패) 큐 — 새로고침에도 살아남음
     let backend = null;
+    const PK = "ds_pending_v1";
+    try { const o = JSON.parse(localStorage.getItem(PK) || "{}"); Object.keys(o).forEach(k => pending.set(k, o[k])); } catch (e) {}
+    const persistPending = () => { const o = {}; pending.forEach((v, k) => o[k] = v); localStorage.setItem(PK, JSON.stringify(o)); };
     return {
       mode: "local",
       cell(k) {
@@ -56,12 +60,29 @@
         if ("qty" in patch) v.qd = fmtNum(patch.qty);
         if ("status" in patch) v.d = TODAY;   // 변경일(전일대비·금일색 판정)
         over.set(k, v); this.emit(k);
-        if (backend) try { await backend.saveCell(k, v, meta); } catch (e) { toast("저장 실패: " + e.message); }
+        await this._save("c:" + k, { kind: "cell", k, v, meta });
       },
       async setNote(k, body, meta) {
         this._note(k, body); this.emit("note:" + k);
-        if (backend) try { await backend.saveNote(k, body, meta); } catch (e) { toast("저장 실패: " + e.message); }
+        await this._save("n:" + k, { kind: "note", k, body, meta });
       },
+      // ── 미저장 큐(저장 실패·오프라인 보관 + 자동 재시도) ──
+      _run(job) { return job.kind === "cell" ? backend.saveCell(job.k, job.v, job.meta) : backend.saveNote(job.k, job.body, job.meta); },
+      async _save(qk, job) {
+        if (!backend) return;
+        pending.set(qk, job); persistPending(); markPending(job);
+        try { await this._run(job); pending.delete(qk); persistPending(); markPending(job); }
+        catch (e) { toast("저장 실패 — 미저장 보관, 재연결 시 자동 저장"); paintConn(); }
+      },
+      async flush() {
+        if (!backend || !pending.size) return;
+        const jobs = [...pending.entries()];
+        for (const [qk, job] of jobs) { try { await this._run(job); pending.delete(qk); } catch (e) {} }
+        persistPending(); jobs.forEach(([, job]) => markPending(job)); paintConn();
+      },
+      reapplyPending() { pending.forEach(job => { if (job.kind === "cell") over.set(job.k, job.v); else this._note(job.k, job.body); }); },
+      pendingCount() { return pending.size; },
+      isPending(k) { return pending.has("c:" + k); },
       photoList(pk) { try { return JSON.parse(notes.get(pk) || "[]"); } catch (e) { return []; } },
       async addPhoto(pk, file, meta) {
         if (!backend || !backend.uploadPhoto) { toast("사진 업로드 불가"); return; }
@@ -141,6 +162,20 @@
 
   let USER = JSON.parse(localStorage.getItem("ds_user") || "null");
   const meta = () => USER || {};
+
+  // 저장모드 표시 + 미저장 대기 배지
+  let connBase = { text: "로컬", cls: "conn local" };
+  function paintConn() {
+    const el = document.getElementById("connState"); if (!el) return;
+    const n = store.pendingCount();
+    el.className = connBase.cls + (n ? " has-pending" : "");
+    el.textContent = connBase.text + (n ? " ⏳" + n : "");
+    el.title = n ? n + "건 저장 대기 — 재연결 시 자동 저장" : "저장 모드";
+  }
+  function markPending(job) {
+    if (job.kind === "cell") { const td = gridEl.querySelector(`td.c[data-key="${cssEsc(job.k)}"]`); if (td) td.classList.toggle("unsaved", store.isPending(job.k)); }
+    paintConn();
+  }
 
   /* ---------- 상태 ---------- */
   partsByZone["all"] = SEED.parts;
@@ -275,6 +310,7 @@
     const tm = store.note("wt:" + k);   // 작업팀(선택) → 툴팁
     td.title = tm ? "작업팀: " + tm : "";
     if (diffOn && c.d === TODAY && DIFF_STATUS.has(st)) td.classList.add("diffmark");
+    if (store.isPending(k)) td.classList.add("unsaved");   // 저장 대기 표시
   }
 
   function floorDoneCount(partId) {
@@ -710,11 +746,17 @@
     if (window.matchMedia("(max-width:760px)").matches) cellPx = 42;   // 모바일 기본 줌 크게
     buildZoneTabs(); setVars(); renderGrid();
     if (USER) document.getElementById("userLabel").textContent = USER.team ? `${USER.name}(${USER.team})` : USER.name;
-    const conn = document.getElementById("connState");
     if (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase) {
-      try { store.attach(await cloudBackend()); store.mode = "cloud"; conn.textContent = "실시간"; conn.className = "conn cloud"; renderGrid(); }
-      catch (e) { console.error(e); store.attach(localBackend()); conn.textContent = "로컬(연결실패)"; conn.className = "conn err"; toast("클라우드 연결 실패 → 로컬"); renderGrid(); }
-    } else { store.attach(localBackend()); conn.textContent = "로컬"; conn.className = "conn local"; renderGrid(); }
+      try {
+        store.attach(await cloudBackend()); store.mode = "cloud";
+        store.reapplyPending();            // 직전 세션의 미저장분 복원(서버값 덮어쓰기 방지)
+        connBase = { text: "실시간", cls: "conn cloud" }; paintConn(); renderGrid();
+        store.flush();                     // 미저장분 재전송
+      }
+      catch (e) { console.error(e); store.attach(localBackend()); connBase = { text: "로컬(연결실패)", cls: "conn err" }; paintConn(); toast("클라우드 연결 실패 → 로컬"); renderGrid(); }
+    } else { store.attach(localBackend()); connBase = { text: "로컬", cls: "conn local" }; paintConn(); renderGrid(); }
+    window.addEventListener("online", () => { toast("재연결 — 미저장분 저장 중"); store.flush(); });
+    setInterval(() => store.flush(), 20000);   // 주기적 재시도
     if (!USER) openName();
   }
   boot();
