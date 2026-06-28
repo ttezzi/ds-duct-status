@@ -16,6 +16,7 @@
     </div>
     <div class="spacer"></div>
     <button id="dashBtn" class="btn-dash" title="대시보드">📊 대시보드</button>
+    <button id="histBtn" class="btn-dash" title="변경 이력 (누가·언제·무엇을)">📜 이력</button>
     <button id="diffBtn" class="btn-diff" title="전일 대비 변경 표시 (설치·간섭)">전일대비</button>
     <div class="zoom-ctrls">
       <button id="zoomOut" title="축소">－</button>
@@ -97,6 +98,14 @@
     <div class="modal-card dash">
       <div class="modal-head"><span>📊 대시보드 <span id="dashScope" class="dash-scope"></span></span><button class="close" data-close>✕</button></div>
       <div id="dashBody" class="dash-body"></div>
+    </div>
+  </div>
+
+  <!-- 변경 이력 -->
+  <div id="histModal" class="modal hidden">
+    <div class="modal-card dash">
+      <div class="modal-head"><span>📜 변경 이력</span><button class="close" data-close>✕</button></div>
+      <div id="histBody" class="dash-body"></div>
     </div>
   </div>
 
