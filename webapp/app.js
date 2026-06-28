@@ -56,18 +56,19 @@
       _cell(k, v) { over.set(k, v); },
       _note(k, v) { if (v) notes.set(k, v); else notes.delete(k); },
       async setCell(k, patch, meta) {
+        const old = this.cell(k).status;        // 변경 전 상태(이력용)
         const v = Object.assign({}, over.get(k) || {}, patch);
         if ("qty" in patch) v.qd = fmtNum(patch.qty);
         if ("status" in patch) v.d = TODAY;   // 변경일(전일대비·금일색 판정)
         over.set(k, v); this.emit(k);
-        await this._save("c:" + k, { kind: "cell", k, v, meta });
+        await this._save("c:" + k, { kind: "cell", k, v, meta, old });
       },
       async setNote(k, body, meta) {
         this._note(k, body); this.emit("note:" + k);
         await this._save("n:" + k, { kind: "note", k, body, meta });
       },
       // ── 미저장 큐(저장 실패·오프라인 보관 + 자동 재시도) ──
-      _run(job) { return job.kind === "cell" ? backend.saveCell(job.k, job.v, job.meta) : backend.saveNote(job.k, job.body, job.meta); },
+      _run(job) { return job.kind === "cell" ? backend.saveCell(job.k, job.v, job.meta, job.old) : backend.saveNote(job.k, job.body, job.meta); },
       async _save(qk, job) {
         if (!backend) return;
         pending.set(qk, job); persistPending(); markPending(job);
@@ -95,6 +96,7 @@
         await this.setNote(pk, arr.length ? JSON.stringify(arr) : "", meta);
       },
       hasBackendPhoto() { return !!(backend && backend.uploadPhoto); },
+      async loadLog(n) { return backend && backend.loadLog ? backend.loadLog(n) : []; },
       cloud() { return store.mode === "cloud"; },
       attach(b) { backend = b; },
     };
@@ -128,10 +130,11 @@
       .on("postgres_changes", { event: "*", schema: "public", table: "notes" }, p => { const r = p.new || p.old; if (r && r.key) { store._note(r.key, p.new ? p.new.body : ""); store.emit("note:" + r.key); } })
       .subscribe();
     return {
-      async saveCell(k, v, meta) {
+      async saveCell(k, v, meta, old) {
         const row = { key: k, status: v.status, qty: v.qty == null ? null : v.qty, qd: v.qd || null, d: v.d || null, updated_by: meta && meta.name, updated_at: new Date().toISOString() };
         const { error } = await sb.from("cells").upsert(row); if (error) throw error;
-        sb.from("change_log").insert({ cell_key: k, new_status: v.status, qty: row.qty, user_name: meta && meta.name, team: meta && meta.team }).then(() => {}, () => {});
+        if (old !== v.status)   // 실제 상태가 바뀐 경우만 이력 기록(불필요 노이즈 방지)
+          sb.from("change_log").insert({ cell_key: k, old_status: old == null ? null : old, new_status: v.status, qty: row.qty, user_name: meta && meta.name, team: meta && meta.team }).then(() => {}, () => {});
       },
       async saveNote(k, body, meta) {
         if (body) { const { error } = await sb.from("notes").upsert({ key: k, body, updated_by: meta && meta.name, updated_at: new Date().toISOString() }); if (error) throw error; }
@@ -144,6 +147,12 @@
         const { error } = await sb.storage.from("photos").upload(path, blob, { contentType: "image/jpeg", upsert: false });
         if (error) throw error;
         return sb.storage.from("photos").getPublicUrl(path).data.publicUrl;
+      },
+      async loadLog(limit) {
+        const { data, error } = await sb.from("change_log")
+          .select("cell_key,old_status,new_status,user_name,team,ts")
+          .order("ts", { ascending: false }).limit(limit || 300);
+        if (error) throw error; return data || [];
       },
     };
   }
@@ -521,12 +530,13 @@
   document.getElementById("userBtn").onclick = () => { if (USER) { document.getElementById("nameInput").value = USER.name; document.getElementById("teamInput").value = USER.team || ""; } openName(); };
 
   const dashModal = document.getElementById("dashModal");
+  const histModal = document.getElementById("histModal");
   function closeModals() {
-    [editorModal, textModal, nameModal, dashModal].forEach(m => m.classList.add("hidden"));
+    [editorModal, textModal, nameModal, dashModal, histModal].forEach(m => m.classList.add("hidden"));
     gridEl.querySelectorAll("td.sel").forEach(e => e.classList.remove("sel")); textKey = null; edPart = null;
   }
   document.querySelectorAll("[data-close]").forEach(b => b.onclick = closeModals);
-  [editorModal, textModal, dashModal].forEach(m => m.addEventListener("click", e => { if (e.target === m) closeModals(); }));
+  [editorModal, textModal, dashModal, histModal].forEach(m => m.addEventListener("click", e => { if (e.target === m) closeModals(); }));
 
   /* ---------- 격자 클릭 ---------- */
   gridEl.addEventListener("click", e => {
@@ -654,6 +664,38 @@
     dashModal.classList.remove("hidden");
   }
   document.getElementById("dashBtn").onclick = openDash;
+
+  /* ---------- 변경 이력 ---------- */
+  let histTodayOnly = false;
+  async function openHist() {
+    if (!store.cloud()) { toast("변경 이력은 실시간(클라우드) 모드에서만 조회됩니다"); return; }
+    const body = document.getElementById("histBody");
+    body.innerHTML = `<div class="hist-loading">불러오는 중…</div>`;
+    histModal.classList.remove("hidden");
+    let rows = [];
+    try { rows = await store.loadLog(300); }
+    catch (e) { body.innerHTML = `<div class="hist-loading">조회 실패: ${escAttr(e.message)}</div>`; return; }
+    renderHist(rows);
+  }
+  function renderHist(rows) {
+    const body = document.getElementById("histBody");
+    const list = histTodayOnly ? rows.filter(r => String(r.ts || "").slice(0, 10) === TODAY) : rows;
+    const chip = st => (st == null || st === "")
+      ? `<span class="hchip none">—</span>`
+      : `<span class="hchip"><span class="sw" style="background:${st === "none" ? "#fff" : (STCOLOR[st] || "#fff")}"></span>${escAttr(STLABEL[st] || st)}</span>`;
+    const fmtTs = ts => { const d = new Date(ts); const p = n => String(n).padStart(2, "0"); return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+    const cellLabel = key => { const a = String(key).split("|"), p = partById[a[0]]; return `${p ? p.part_no : a[0]} · ${a[1] || ""} · ${a[2] || ""}`; };
+    let html = `<div class="hist-bar"><button id="histTodayBtn" class="${histTodayOnly ? "on" : ""}">오늘만</button><span class="hist-count">${list.length}건</span></div>`;
+    if (!list.length) html += `<div class="hist-loading">이력이 없습니다.</div>`;
+    else html += `<div class="hist-list">` + list.map(r =>
+      `<div class="hist-row"><span class="ht">${fmtTs(r.ts)}</span>` +
+      `<span class="hu">${escAttr(r.user_name || "?")}${r.team ? `<em>(${escAttr(r.team)})</em>` : ""}</span>` +
+      `<span class="hc">${escAttr(cellLabel(r.cell_key))}</span>` +
+      `<span class="hs">${chip(r.old_status)}<i>→</i>${chip(r.new_status)}</span></div>`).join("") + `</div>`;
+    body.innerHTML = html;
+    const tb = document.getElementById("histTodayBtn"); if (tb) tb.onclick = () => { histTodayOnly = !histTodayOnly; renderHist(rows); };
+  }
+  document.getElementById("histBtn").onclick = openHist;
 
   /* ---------- 줌(포인터 중심) ---------- */
   let cellPx = 30;
