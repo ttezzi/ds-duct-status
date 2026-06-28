@@ -41,21 +41,45 @@ create table if not exists public.change_log (
 alter publication supabase_realtime add table public.cells;
 alter publication supabase_realtime add table public.notes;
 
--- RLS (익명 링크 공유)
+-- RLS (익명 링크 공유) — 안전 강화판
+--  · cells : 읽기/추가/수정만 허용, DELETE 차단(앱은 upsert만 사용 → 전체 삭제 공격 방지)
+--  · notes : 비우기(삭제)가 필요해 DELETE 허용
+--  · change_log : insert/select 만
+-- ⚠️ 쓰기 자체는 여전히 익명 허용(링크 공유 편의). '진짜 접근 통제'는 아래 ※ 항목 참고.
 alter table public.cells      enable row level security;
 alter table public.notes      enable row level security;
 alter table public.change_log enable row level security;
-create policy "cells_all"  on public.cells      for all using (true) with check (true);
+
+-- 기존 개방 정책 제거(이미 한 번 실행한 환경에서도 안전하게 재적용)
+drop policy if exists "cells_all"  on public.cells;
+drop policy if exists "notes_all"  on public.notes;
+drop policy if exists "log_insert" on public.change_log;
+drop policy if exists "log_read"   on public.change_log;
+
+create policy "cells_read"   on public.cells for select using (true);
+create policy "cells_insert" on public.cells for insert with check (true);
+create policy "cells_update" on public.cells for update using (true) with check (true);
+-- (cells 에는 delete 정책 없음 = 삭제 불가)
+
 create policy "notes_all"  on public.notes      for all using (true) with check (true);
 create policy "log_insert" on public.change_log for insert with check (true);
 create policy "log_read"   on public.change_log for select using (true);
+
+-- ※ 누구나 '수정'은 가능한 상태입니다. 더 강한 통제가 필요하면 택1:
+--   (a) Netlify 사이트 비밀번호/접근 제어(Site settings → Access control)
+--   (b) Supabase Auth(익명 로그인 등) 도입 후 위 정책의 using/check 를 (auth.role() = 'authenticated') 로 교체
 
 -- ---- 사진 저장(Storage) ----
 -- 공개 버킷 'photos' 생성 (이미 있으면 무시)
 insert into storage.buckets (id, name, public)
 values ('photos', 'photos', true)
 on conflict (id) do nothing;
--- 익명 업로드/조회 허용(현장 공유 링크용)
+-- 익명 업로드/조회 허용(현장 공유 링크용). 객체 DELETE 는 차단:
+--   앱은 사진 삭제 시 스토리지 객체를 지우지 않고 메모의 참조만 제거하므로(app.js delPhoto)
+--   delete 정책이 없어도 동작에 문제 없고, '전체 사진 일괄 삭제' 공격을 막는다.
+drop policy if exists "photos_read"   on storage.objects;
+drop policy if exists "photos_insert" on storage.objects;
+drop policy if exists "photos_delete" on storage.objects;
 create policy "photos_read"   on storage.objects for select using (bucket_id = 'photos');
 create policy "photos_insert" on storage.objects for insert with check (bucket_id = 'photos');
-create policy "photos_delete" on storage.objects for delete using (bucket_id = 'photos');
+-- (photos delete 정책 없음 = 객체 삭제 불가)

@@ -19,3 +19,6 @@ webapp/DS설치현황_*.xlsx
 # 파이썬
 __pycache__/
 *.pyc
+
+# bkit 로컬 PDCA 세션 상태(머신/세션별 — 커밋 불필요)
+.bkit/
