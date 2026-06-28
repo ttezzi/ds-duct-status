@@ -2,7 +2,7 @@
    · 앱 셸(같은 출처): network-first → 실패 시 캐시 (배포 즉시 최신 반영 + 오프라인 폴백)
    · CDN 라이브러리(버전 고정): cache-first
    · Supabase API/실시간: SW 미개입(항상 네트워크) */
-const C = "ds-v1";
+const C = "ds-v2";
 const SHELL = ["./", "./index.html", "./app.js", "./styles.css", "./seed.js", "./config.js", "./manifest.webmanifest", "./icon.svg"];
 const CDN = [
   "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js",
@@ -12,7 +12,7 @@ const CDN = [
 self.addEventListener("install", e => {
   e.waitUntil((async () => {
     const c = await caches.open(C);
-    await c.addAll(SHELL);
+    await Promise.all(SHELL.map(u => c.add(new Request(u, { cache: "reload" }))));   // 항상 서버에서 새로 받아 프리캐시
     await Promise.allSettled(CDN.map(u => c.add(u)));   // CDN 실패해도 설치는 진행
     self.skipWaiting();
   })());
@@ -31,9 +31,9 @@ self.addEventListener("fetch", e => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin === location.origin) {
-    // 앱 셸: 최신 우선, 오프라인이면 캐시(없으면 index.html)
+    // 앱 셸: 항상 서버 재검증(no-cache, ETag)으로 최신 받기 → 오프라인이면 캐시(없으면 index.html)
     e.respondWith(
-      fetch(req).then(res => { const cp = res.clone(); caches.open(C).then(c => c.put(req, cp)); return res; })
+      fetch(new Request(req, { cache: "no-cache" })).then(res => { const cp = res.clone(); caches.open(C).then(c => c.put(req, cp)); return res; })
         .catch(() => caches.match(req).then(r => r || caches.match("./index.html")))
     );
   } else if (CDN.indexOf(url.href) >= 0) {
