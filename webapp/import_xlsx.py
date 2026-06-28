@@ -19,7 +19,7 @@ XLSX_NAME = "(260617)세보 PH2 DUCT설치현황_rev01.xlsx"
 # 저장소 루트(= webapp 상위)에 둔 원본을 기본 사용. 환경변수 DS_XLSX 로 덮어쓰기 가능.
 SRC = os.environ.get("DS_XLSX") or os.path.join(HERE, "..", XLSX_NAME)
 SHEET = "DS 설치현황"
-OUT = os.path.join(HERE, "seed.json")
+OUT = os.path.join(HERE, "..", "seed.json")   # 배포 폴더(webapp) 밖 — GitHub Pages 에 올라가지 않음(앱은 seed.js만 사용)
 
 THEME = ['FFFFFF','000000','E7E6E6','44546A','5B9BD5','ED7D31','A5A5A5','FFC000','4472C4','70AD47','0563C1','954F72']
 
@@ -179,7 +179,7 @@ def main():
     }
     with open(OUT, 'w', encoding='utf-8') as f:
         json.dump(seed, f, ensure_ascii=False, indent=1)
-    with open(os.path.join(os.path.dirname(OUT), 'seed.js'), 'w', encoding='utf-8') as f:
+    with open(os.path.join(HERE, 'seed.js'), 'w', encoding='utf-8') as f:   # seed.js 는 앱이 로드 → webapp 안에 유지
         f.write('window.__SEED__ = '); json.dump(seed, f, ensure_ascii=False); f.write(';\n')
 
     from collections import Counter

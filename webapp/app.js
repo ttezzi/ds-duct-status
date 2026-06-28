@@ -126,7 +126,14 @@
     (cells || []).forEach(r => store._cell(r.key, { status: r.status, qty: r.qty, qd: r.qd, d: r.d }));
     const { data: ns } = await sb.from("notes").select("key,body"); (ns || []).forEach(r => store._note(r.key, r.body));
     sb.channel("ds-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "cells" }, p => { const r = p.new; if (r && r.key) { store._cell(r.key, { status: r.status, qty: r.qty, qd: r.qd, d: r.d }); store.emit(r.key); } })
+      .on("postgres_changes", { event: "*", schema: "public", table: "cells" }, p => {
+        const r = p.new; if (!r || !r.key) return;
+        store._cell(r.key, { status: r.status, qty: r.qty, qd: r.qd, d: r.d }); store.emit(r.key);
+        if (r.updated_by && (!USER || r.updated_by !== USER.name)) {   // 다른 사람이 바꾼 칸 알림(동시편집 인지)
+          const a = String(r.key).split("|"), pp = partById[a[0]];
+          toast(`✏️ ${r.updated_by}님이 ${(pp ? pp.part_no : a[0])}·${a[1] || ""} 변경`);
+        }
+      })
       .on("postgres_changes", { event: "*", schema: "public", table: "notes" }, p => { const r = p.new || p.old; if (r && r.key) { store._note(r.key, p.new ? p.new.body : ""); store.emit("note:" + r.key); } })
       .subscribe();
     return {
@@ -231,7 +238,8 @@
       th.innerHTML =
         `<span class="pn">${escAttr(p.part_no)}</span>` +
         `<span class="sz">${escAttr(p.size || "")}</span>` +
-        `<span class="sg" title="${escAttr(p.seong || "")}">${escAttr(p.seong || "")}</span>`;
+        `<span class="sg" title="${escAttr(p.seong || "")}">${escAttr(p.seong || "")}</span>` +
+        `<button class="memo-btn lm-btn ${store.note("lm:" + p.id) ? "has-dot" : "empty"}" data-linememo="${escAttr(p.id)}" title="라인 메모">📝</button>`;
       pr.appendChild(th);
     });
     thead.appendChild(pr);
@@ -537,9 +545,12 @@
   }
   document.querySelectorAll("[data-close]").forEach(b => b.onclick = closeModals);
   [editorModal, textModal, dashModal, histModal].forEach(m => m.addEventListener("click", e => { if (e.target === m) closeModals(); }));
+  // Esc 로 열린 모달 닫기(접근성)
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && [editorModal, textModal, nameModal, dashModal, histModal].some(m => !m.classList.contains("hidden"))) closeModals(); });
 
   /* ---------- 격자 클릭 ---------- */
   gridEl.addEventListener("click", e => {
+    const lb = e.target.closest("[data-linememo]"); if (lb) { const pid = lb.dataset.linememo; openText("lm:" + pid, `${partById[pid].part_no} 라인 메모`); return; }
     const mb = e.target.closest("[data-memo]"); if (mb) { openText("fm:" + (searchQ ? "검색" : currentZone) + ":" + mb.dataset.memo, `${searchQ ? "" : currentZone + " "}${mb.dataset.memo} 층 메모`); return; }
     const ct = e.target.closest("[data-contact]"); if (ct) { const up = ct.dataset.contact.indexOf("uc:") === 0; const pid = ct.dataset.contact.split(":")[1]; openText(ct.dataset.contact, `${partById[pid].part_no} ${up ? "상부접점" : "하부접점"}`, { doneKey: (up ? "ucz:" : "dcz:") + pid }); return; }
     const td = e.target.closest("td.c"); if (td && td.dataset.key) { const [pid, floor] = td.dataset.key.split("|"); openEditor(pid, floor); }
@@ -775,6 +786,7 @@
         if (el) paintContact(el, up, pid);
       }
       else if (nk.indexOf("fm:") === 0) { const floor = nk.split(":")[2]; const el = gridEl.querySelector(`[data-memo="${cssEsc(floor)}"]`); if (el) el.className = "memo-btn " + (store.note(nk) ? "has-dot" : "empty"); }
+      else if (nk.indexOf("lm:") === 0) { const pid = nk.slice(3); const el = gridEl.querySelector(`[data-linememo="${cssEsc(pid)}"]`); if (el) el.className = "memo-btn lm-btn " + (store.note(nk) ? "has-dot" : "empty"); }
       else if (nk.indexOf("ph:") === 0 && editorOpen() && nk === "ph:" + edPart + ":" + edFloor) renderPhotos();
     } else {
       refreshCell(k); buildStatusStrip(currentParts);

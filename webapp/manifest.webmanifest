@@ -1,0 +1,14 @@
+{
+  "name": "P4 Ph2 입상덕트 설치현황",
+  "short_name": "DS현황",
+  "description": "현장 DS 입상덕트 층×파트 설치현황 실시간 편집",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

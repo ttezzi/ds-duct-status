@@ -378,3 +378,10 @@ table.elev th,table.elev td{border-right:1px solid var(--line2);border-bottom:1p
 .hchip .sw{width:10px;height:10px;border-radius:3px;border:1px solid #cbd5e1;display:inline-block}
 .hchip.none{color:#94a3b8}
 @media (max-width:760px){.hist-row{grid-template-columns:1fr 1fr;gap:4px}.hist-row .hs{justify-content:flex-start;grid-column:1 / -1}.hist-row .hc{grid-column:1 / -1}}
+
+/* 라인 메모(파트 헤더 📝) — 빈 상태도 흐리게 보여 추가 가능 */
+.elev thead tr.part-row th{position:relative}
+.memo-btn.lm-btn{position:absolute;top:0;right:0;width:15px;height:15px;line-height:15px;text-align:center;font-size:9px;opacity:1;z-index:3}
+.memo-btn.lm-btn.empty{display:inline-block;opacity:.32;filter:grayscale(1)}
+.memo-btn.lm-btn.has-dot{opacity:1}
+.memo-btn.lm-btn.has-dot::after{content:"";position:absolute;top:0;right:0;width:5px;height:5px;border-radius:50%;background:#ef4444}
