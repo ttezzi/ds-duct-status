@@ -148,8 +148,9 @@
         else await sb.from("notes").delete().eq("key", k);
       },
       async uploadPhoto(file, meta) {
-        const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-        const path = (meta && meta.name ? meta.name : "u") + "/" + Date.now() + "_" + Math.floor(Math.random() * 1e4) + "." + ext;
+        // Storage 키는 ASCII만 허용 — 한글 이름을 폴더로 쓰면 'Invalid key' 오류. ASCII로 정리(작성자 정보는 note/change_log에 별도 기록).
+        const safe = String((meta && meta.name) || "u").replace(/[^a-zA-Z0-9_-]/g, "") || "u";
+        const path = safe + "/" + Date.now() + "_" + Math.floor(Math.random() * 1e4) + ".jpg";
         const blob = await downscaleBlob(file);
         const { error } = await sb.storage.from("photos").upload(path, blob, { contentType: "image/jpeg", upsert: false });
         if (error) throw error;
