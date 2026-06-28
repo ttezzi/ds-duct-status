@@ -195,7 +195,12 @@
 
   /* ---------- 상태 ---------- */
   partsByZone["all"] = SEED.parts;
-  let currentZone = "all";          // 기본보기 = 전체
+  // 구역 다중 토글(켠 것만 표시) — 기본 전부 ON, localStorage 지속
+  let enabledZones;
+  try { const z = JSON.parse(localStorage.getItem("ds_zones") || "null"); enabledZones = new Set(Array.isArray(z) && z.length ? z.filter(x => SEED.zones.includes(x)) : SEED.zones); }
+  catch (e) { enabledZones = new Set(SEED.zones); }
+  if (!enabledZones.size) enabledZones = new Set(SEED.zones);
+  const saveZones = () => localStorage.setItem("ds_zones", JSON.stringify([...enabledZones]));
   let searchQ = "";
   let diffOn = false;               // 전일대비 표시
   let currentParts = [];
@@ -209,7 +214,7 @@
 
   function computeParts() {
     if (searchQ) return SEED.parts.filter(p => matchPart(p, searchQ));
-    return partsByZone[currentZone] || [];
+    return SEED.parts.filter(p => enabledZones.has(p.zone));   // 켠 구역만(다중 토글)
   }
 
   /* ---------- 렌더 ---------- */
@@ -246,7 +251,7 @@
     tbl.appendChild(thead);
 
     const tbody = document.createElement("tbody");
-    const zoneForMemo = () => searchQ ? "검색" : currentZone;
+    const zoneForMemo = () => "all";   // 층 메모는 구역 무관 전역(좌측 층 라벨 공통)
 
     // 상부접점
     tbody.appendChild(contactRow(parts, "upper", "상부접점"));
@@ -346,7 +351,8 @@
   }
 
   // 범례 표(색·라벨)와 갯수를 한 칸에 통합 + 감추기. 진행바는 기설치/신규 구분.
-  let legendHidden = localStorage.getItem("ds_legend_hidden") === "1";
+  // 모바일에선 범례·갯수(해당없음 포함) 기본 접힘. 저장된 선택이 있으면 그걸 우선.
+  let legendHidden = (function () { const v = localStorage.getItem("ds_legend_hidden"); return v == null ? window.matchMedia("(max-width:760px)").matches : v === "1"; })();
   const LEGEND_ORDER = ["not_installed", "install_done", "drill_done", "predrill_duct", "predrill_floor", "today_install", "today_drill", "etc_interf", "scaffold_interf", "none"];
   function buildStatusStrip(parts) {
     const strip = document.getElementById("statusStrip"); if (!strip) return;
@@ -370,7 +376,7 @@
     const chip = key => {
       const n = cnt[key] || 0;
       const sw = key === "no_beam" ? `<span class="sw xbeam"></span>` : `<span class="sw" style="background:${key === "none" ? "#fff" : STCOLOR[key]}"></span>`;
-      return `<span class="chip"><span class="sw-wrap">${sw}</span>${STLABEL[key]}${STAUTO[key] ? ` <em class="auto-tag">자동</em>` : ""} <b>${n}</b></span>`;
+      return `<span class="chip"><span class="sw-wrap">${sw}</span>${STLABEL[key]}${STAUTO[key] ? ` <em class="auto-tag">자동</em>` : ""}${key === "none" ? "" : ` <b>${n}</b>`}</span>`;
     };
     strip.innerHTML =
       `<button id="legendToggle" class="legend-toggle" title="범례·갯수 접기/펴기">${legendHidden ? "▸" : "▾"} 범례·갯수</button>` +
@@ -400,7 +406,7 @@
   const hasLayer = (pid, f, l) => !!seedCell[keyOf(pid, f, l)];
 
   function openEditor(pid, floor) {
-    if (!USER) { openName(); return; }
+    if (!USER) { openLogin(); return; }
     edPart = pid; edFloor = floor;
     const p = partById[pid];
     document.getElementById("edTitle").textContent = `${p.part_no} · ${floor}`;
@@ -508,7 +514,7 @@
   function paintTextSeg() { textStatusEl.querySelectorAll("[data-cstat]").forEach(b => b.classList.toggle("on", (b.dataset.cstat === "done") === textDone)); }
   textStatusEl.querySelectorAll("[data-cstat]").forEach(b => b.onclick = () => { textDone = b.dataset.cstat === "done"; paintTextSeg(); });
   function openText(key, title, opts) {
-    if (!USER) { openName(); return; }
+    if (!USER) { openLogin(); return; }
     textKey = key; document.getElementById("textTitle").textContent = title;
     document.getElementById("textArea").value = store.note(key);
     if (opts && opts.doneKey) { textDoneKey = opts.doneKey; textDone = store.note(opts.doneKey) === "1"; textStatusEl.classList.remove("hidden"); paintTextSeg(); }
@@ -526,16 +532,49 @@
     closeModals();
   };
 
-  /* ---------- 이름/팀 ---------- */
+  /* ---------- 로그인(공구·이름·비번) ---------- */
+  // ※ 클라이언트 비번은 '화면 편집 잠금'일 뿐 — DB 자체 차단 아님(캐주얼 오편집 방지 + 작성자 기록용).
   const nameModal = document.getElementById("nameModal");
-  function openName() { nameModal.classList.remove("hidden"); }
+  const GONGGU = ["1공구", "2공구", "3공구", "4공구", "5공구"];
+  const GONGGU_PW = { "1공구": "1111", "2공구": "2222", "3공구": "3333", "4공구": "4444", "5공구": "5555" };
+  let loginGg = null;
+  const rosterOf = g => { try { return JSON.parse(store.note("roster:" + g) || "[]"); } catch (e) { return []; } };
+  function loginErr(m) { const e = document.getElementById("loginErr"); e.textContent = m || ""; e.classList.toggle("hidden", !m); }
+  function setUserLabel() { document.getElementById("userLabel").textContent = USER ? `${USER.name}(${USER.team})` : "로그인"; }
+  function renderLoginGonggu() {
+    const wrap = document.getElementById("loginGonggu"); wrap.innerHTML = "";
+    GONGGU.forEach(g => { const b = document.createElement("button"); b.type = "button"; b.className = "gg-btn" + (loginGg === g ? " sel" : ""); b.textContent = g;
+      b.onclick = () => { loginGg = g; renderLoginGonggu(); renderLoginNames(); loginErr(""); }; wrap.appendChild(b); });
+  }
+  function renderLoginNames() {
+    const wrap = document.getElementById("loginNames"); wrap.innerHTML = "";
+    if (!loginGg) { wrap.innerHTML = `<span class="nc-hint">공구를 먼저 선택하세요</span>`; return; }
+    const names = rosterOf(loginGg);
+    if (!names.length) { wrap.innerHTML = `<span class="nc-hint">등록된 이름 없음 — 아래에 새로 입력</span>`; return; }
+    names.forEach(nm => { const b = document.createElement("button"); b.type = "button"; b.className = "name-chip" + (document.getElementById("nameInput").value === nm ? " sel" : ""); b.textContent = nm;
+      b.onclick = () => { document.getElementById("nameInput").value = nm; wrap.querySelectorAll(".name-chip").forEach(x => x.classList.remove("sel")); b.classList.add("sel"); }; wrap.appendChild(b); });
+  }
+  function openLogin() {
+    loginGg = USER ? USER.team : null;
+    document.getElementById("nameInput").value = USER ? USER.name : "";
+    document.getElementById("pwInput").value = "";
+    loginErr("");
+    document.getElementById("logoutBtn").classList.toggle("hidden", !USER);
+    renderLoginGonggu(); renderLoginNames();
+    nameModal.classList.remove("hidden");
+  }
   document.getElementById("nameSave").onclick = () => {
-    const n = document.getElementById("nameInput").value.trim(), t = document.getElementById("teamInput").value.trim();
-    if (!n) { document.getElementById("nameInput").focus(); return; }
-    USER = { name: n, team: t }; localStorage.setItem("ds_user", JSON.stringify(USER));
-    document.getElementById("userLabel").textContent = t ? `${n}(${t})` : n; closeModals();
+    const n = document.getElementById("nameInput").value.trim();
+    const pw = document.getElementById("pwInput").value.trim();
+    if (!loginGg) { loginErr("공구를 선택하세요"); return; }
+    if (!n) { loginErr("이름을 선택하거나 새로 입력하세요"); document.getElementById("nameInput").focus(); return; }
+    if (pw !== GONGGU_PW[loginGg]) { loginErr("비밀번호가 올바르지 않습니다"); document.getElementById("pwInput").focus(); return; }
+    USER = { name: n, team: loginGg }; localStorage.setItem("ds_user", JSON.stringify(USER)); setUserLabel();
+    const names = rosterOf(loginGg); if (names.indexOf(n) < 0) { names.push(n); store.setNote("roster:" + loginGg, JSON.stringify(names), USER); }
+    closeModals();
   };
-  document.getElementById("userBtn").onclick = () => { if (USER) { document.getElementById("nameInput").value = USER.name; document.getElementById("teamInput").value = USER.team || ""; } openName(); };
+  document.getElementById("logoutBtn").onclick = () => { USER = null; localStorage.removeItem("ds_user"); setUserLabel(); closeModals(); };
+  document.getElementById("userBtn").onclick = openLogin;
 
   const dashModal = document.getElementById("dashModal");
   const histModal = document.getElementById("histModal");
@@ -544,14 +583,14 @@
     gridEl.querySelectorAll("td.sel").forEach(e => e.classList.remove("sel")); textKey = null; edPart = null;
   }
   document.querySelectorAll("[data-close]").forEach(b => b.onclick = closeModals);
-  [editorModal, textModal, dashModal, histModal].forEach(m => m.addEventListener("click", e => { if (e.target === m) closeModals(); }));
+  [editorModal, textModal, dashModal, histModal, nameModal].forEach(m => m.addEventListener("click", e => { if (e.target === m) closeModals(); }));
   // Esc 로 열린 모달 닫기(접근성)
   document.addEventListener("keydown", e => { if (e.key === "Escape" && [editorModal, textModal, nameModal, dashModal, histModal].some(m => !m.classList.contains("hidden"))) closeModals(); });
 
   /* ---------- 격자 클릭 ---------- */
   gridEl.addEventListener("click", e => {
     const lb = e.target.closest("[data-linememo]"); if (lb) { const pid = lb.dataset.linememo; openText("lm:" + pid, `${partById[pid].part_no} 라인 메모`); return; }
-    const mb = e.target.closest("[data-memo]"); if (mb) { openText("fm:" + (searchQ ? "검색" : currentZone) + ":" + mb.dataset.memo, `${searchQ ? "" : currentZone + " "}${mb.dataset.memo} 층 메모`); return; }
+    const mb = e.target.closest("[data-memo]"); if (mb) { openText("fm:all:" + mb.dataset.memo, `${mb.dataset.memo} 층 메모`); return; }
     const ct = e.target.closest("[data-contact]"); if (ct) { const up = ct.dataset.contact.indexOf("uc:") === 0; const pid = ct.dataset.contact.split(":")[1]; openText(ct.dataset.contact, `${partById[pid].part_no} ${up ? "상부접점" : "하부접점"}`, { doneKey: (up ? "ucz:" : "dcz:") + pid }); return; }
     const td = e.target.closest("td.c"); if (td && td.dataset.key) { const [pid, floor] = td.dataset.key.split("|"); openEditor(pid, floor); }
   });
@@ -583,16 +622,22 @@
   /* ---------- 구역 탭 ---------- */
   function buildZoneTabs() {
     const wrap = document.getElementById("zoneTabs"); wrap.innerHTML = "";
-    SEED.zones.concat(["all"]).forEach(z => {
+    SEED.zones.forEach(z => {
+      const on = enabledZones.has(z);
       const b = document.createElement("button");
-      b.textContent = z === "all" ? "전체" : z; if (z !== "all") b.dataset.z = zoneIdx[z];
-      b.className = (!searchQ && z === currentZone) ? "active" : "";
-      b.onclick = () => { searchQ = ""; document.getElementById("searchInput").value = ""; document.getElementById("searchClear").classList.add("hidden"); currentZone = z === "all" ? "all" : z; if (z === "all") renderAll(); else { buildZoneTabs(); renderGrid(); } gw.scrollTo(0, 0); };
+      b.textContent = z; b.dataset.z = zoneIdx[z];
+      b.className = on ? "active" : "off";
+      b.title = (on ? "끄기: " : "켜기: ") + z;
+      b.onclick = () => { if (enabledZones.has(z)) enabledZones.delete(z); else enabledZones.add(z); saveZones(); buildZoneTabs(); renderGrid(); };
       wrap.appendChild(b);
     });
+    // '전체' = 모든 구역 켜기
+    const allOn = enabledZones.size === SEED.zones.length;
+    const ab = document.createElement("button");
+    ab.textContent = "전체"; ab.className = "zt-all" + (allOn ? " active" : ""); ab.title = "모든 구역 켜기";
+    ab.onclick = () => { enabledZones = new Set(SEED.zones); saveZones(); buildZoneTabs(); renderGrid(); gw.scrollTo(0, 0); };
+    wrap.appendChild(ab);
   }
-  // '전체' 는 모든 구역 파트
-  function renderAll() { currentZone = "all"; partsByZone["all"] = SEED.parts; buildZoneTabs(); renderGrid(); }
   partsByZone["all"] = SEED.parts;
 
   /* ---------- 검색 ---------- */
@@ -676,35 +721,46 @@
   }
   document.getElementById("dashBtn").onclick = openDash;
 
-  /* ---------- 변경 이력 ---------- */
-  let histTodayOnly = false;
+  /* ---------- 변경 이력 (일자별) ---------- */
+  let histDate = "all";
   async function openHist() {
     if (!store.cloud()) { toast("변경 이력은 실시간(클라우드) 모드에서만 조회됩니다"); return; }
     const body = document.getElementById("histBody");
     body.innerHTML = `<div class="hist-loading">불러오는 중…</div>`;
     histModal.classList.remove("hidden");
     let rows = [];
-    try { rows = await store.loadLog(300); }
+    try { rows = await store.loadLog(500); }
     catch (e) { body.innerHTML = `<div class="hist-loading">조회 실패: ${escAttr(e.message)}</div>`; return; }
     renderHist(rows);
   }
   function renderHist(rows) {
     const body = document.getElementById("histBody");
-    const list = histTodayOnly ? rows.filter(r => String(r.ts || "").slice(0, 10) === TODAY) : rows;
+    const dayOf = ts => String(ts || "").slice(0, 10);
     const chip = st => (st == null || st === "")
       ? `<span class="hchip none">—</span>`
       : `<span class="hchip"><span class="sw" style="background:${st === "none" ? "#fff" : (STCOLOR[st] || "#fff")}"></span>${escAttr(STLABEL[st] || st)}</span>`;
-    const fmtTs = ts => { const d = new Date(ts); const p = n => String(n).padStart(2, "0"); return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+    const fmtTime = ts => { const d = new Date(ts); const p = n => String(n).padStart(2, "0"); return `${p(d.getHours())}:${p(d.getMinutes())}`; };
     const cellLabel = key => { const a = String(key).split("|"), p = partById[a[0]]; return `${p ? p.part_no : a[0]} · ${a[1] || ""} · ${a[2] || ""}`; };
-    let html = `<div class="hist-bar"><button id="histTodayBtn" class="${histTodayOnly ? "on" : ""}">오늘만</button><span class="hist-count">${list.length}건</span></div>`;
-    if (!list.length) html += `<div class="hist-loading">이력이 없습니다.</div>`;
-    else html += `<div class="hist-list">` + list.map(r =>
-      `<div class="hist-row"><span class="ht">${fmtTs(r.ts)}</span>` +
+    const rowHtml = r =>
+      `<div class="hist-row"><span class="ht">${fmtTime(r.ts)}</span>` +
       `<span class="hu">${escAttr(r.user_name || "?")}${r.team ? `<em>(${escAttr(r.team)})</em>` : ""}</span>` +
       `<span class="hc">${escAttr(cellLabel(r.cell_key))}</span>` +
-      `<span class="hs">${chip(r.old_status)}<i>→</i>${chip(r.new_status)}</span></div>`).join("") + `</div>`;
+      `<span class="hs">${chip(r.old_status)}<i>→</i>${chip(r.new_status)}</span></div>`;
+    const dates = [...new Set(rows.map(r => dayOf(r.ts)).filter(Boolean))].sort().reverse();
+    if (histDate !== "all" && dates.indexOf(histDate) < 0) histDate = "all";
+    const list = histDate === "all" ? rows : rows.filter(r => dayOf(r.ts) === histDate);
+    const opts = `<option value="all">전체 (${rows.length})</option>` +
+      dates.map(d => `<option value="${d}"${d === histDate ? " selected" : ""}>${d}${d === TODAY ? " (오늘)" : ""} · ${rows.filter(r => dayOf(r.ts) === d).length}건</option>`).join("");
+    let html = `<div class="hist-bar"><label class="hist-datelbl">일자 <select id="histDate">${opts}</select></label><span class="hist-count">${list.length}건</span></div>`;
+    if (!list.length) html += `<div class="hist-loading">이력이 없습니다.</div>`;
+    else {
+      const groups = {}; list.forEach(r => { const d = dayOf(r.ts) || "?"; (groups[d] = groups[d] || []).push(r); });
+      html += Object.keys(groups).sort().reverse().map(d =>
+        `<div class="hist-day"><span>${d}${d === TODAY ? " (오늘)" : ""}</span><b>${groups[d].length}건</b></div>` +
+        `<div class="hist-list">` + groups[d].map(rowHtml).join("") + `</div>`).join("");
+    }
     body.innerHTML = html;
-    const tb = document.getElementById("histTodayBtn"); if (tb) tb.onclick = () => { histTodayOnly = !histTodayOnly; renderHist(rows); };
+    const sel = document.getElementById("histDate"); if (sel) sel.onchange = () => { histDate = sel.value; renderHist(rows); };
   }
   document.getElementById("histBtn").onclick = openHist;
 
@@ -799,7 +855,7 @@
     if (SEED.updated) document.getElementById("upd").textContent = "기준 " + SEED.updated;
     if (window.matchMedia("(max-width:760px)").matches) cellPx = 42;   // 모바일 기본 줌 크게
     buildZoneTabs(); setVars(); renderGrid();
-    if (USER) document.getElementById("userLabel").textContent = USER.team ? `${USER.name}(${USER.team})` : USER.name;
+    setUserLabel();
     if (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase) {
       try {
         store.attach(await cloudBackend()); store.mode = "cloud";
@@ -811,7 +867,7 @@
     } else { store.attach(localBackend()); connBase = { text: "로컬", cls: "conn local" }; paintConn(); renderGrid(); }
     window.addEventListener("online", () => { toast("재연결 — 미저장분 저장 중"); store.flush(); });
     setInterval(() => store.flush(), 20000);   // 주기적 재시도
-    if (!USER) openName();
+    if (!USER) openLogin();   // 시작 시 로그인 안내(닫으면 읽기 전용)
   }
   boot();
 })();

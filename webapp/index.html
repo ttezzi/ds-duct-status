@@ -117,13 +117,29 @@
 
   <!-- 이름/팀 입력 -->
   <div id="nameModal" class="modal hidden">
-    <div class="modal-card">
-      <div class="modal-head"><span>접속 정보</span></div>
-      <div class="name-form">
-        <label>이름 <input id="nameInput" type="text" placeholder="홍길동" /></label>
-        <label>팀 <input id="teamInput" type="text" placeholder="○○팀" /></label>
+    <div class="modal-card login">
+      <div class="modal-head"><span>편집 로그인 <span class="login-sub">(보기만 하려면 닫기)</span></span><button class="close" data-close aria-label="닫기">✕</button></div>
+      <div class="login-body">
+        <div class="login-field">
+          <label>공구 선택</label>
+          <div id="loginGonggu" class="gg-btns"></div>
+        </div>
+        <div class="login-field">
+          <label>이름 <span class="opt">(목록에서 선택 또는 새로 입력)</span></label>
+          <div id="loginNames" class="name-chips"></div>
+          <input id="nameInput" type="text" placeholder="새 이름 입력" autocomplete="off" />
+        </div>
+        <div class="login-field">
+          <label>비밀번호 <span class="opt">(공구별)</span></label>
+          <input id="pwInput" type="password" inputmode="numeric" placeholder="••••" autocomplete="off" />
+        </div>
+        <div id="loginErr" class="login-err hidden"></div>
       </div>
-      <div class="modal-foot"><button id="nameSave" class="btn-primary">시작</button></div>
+      <div class="modal-foot login-foot">
+        <button id="logoutBtn" class="btn-ghost hidden">로그아웃</button>
+        <button data-close class="btn-ghost">그냥 보기</button>
+        <button id="nameSave" class="btn-primary">로그인</button>
+      </div>
     </div>
   </div>
 
