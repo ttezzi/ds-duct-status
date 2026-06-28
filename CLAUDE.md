@@ -24,8 +24,12 @@
 - 배포: `webapp` 폴더를 Netlify Drop 등에 올리면 됨. 단일 HTML이라 정적 호스팅이면 충분.
 
 ## 데이터 재생성
-원본 엑셀이 바뀌면: `cd webapp && python import_xlsx.py` → `seed.js/seed.json` 갱신.
+원본 엑셀이 바뀌면: `cd webapp && python import_xlsx.py` → `webapp/seed.js`(앱 로드용) + `seed.json`(**저장소 루트**, 배포 제외) 갱신.
 (openpyxl 필요. 색 추출은 테마색→RGB 해석 포함)
+
+## PWA / 테스트
+- **PWA**: `manifest.webmanifest`·`sw.js`·`icon.svg`. 서비스워커는 앱 셸 network-first(배포 즉시 최신) + 오프라인 폴백, CDN은 cache-first, Supabase는 미개입. 홈화면 추가 가능.
+- **부팅 스모크 테스트**: `node webapp/test/boot_smoke.js` (의존성 없음, 최소 DOM 스텁으로 IIFE 부팅 무에러 확인 — seed 재생성·리팩터 후 회귀 방지). `node --check webapp/app.js`도 병행.
 
 ## 핵심 도메인 규칙 (정합성 — 검증 완료)
 - 세로축: 층마다 3행 = **횡주 / 입상 / 바닥(층막이타공)**, 10F→1F. + 상부접점·하부접점 행.

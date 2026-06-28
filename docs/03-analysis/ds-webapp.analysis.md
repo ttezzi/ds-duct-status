@@ -140,3 +140,37 @@
 - G4: old_status 기록 + 대시보드 "최근 변경 이력"(저비용 고효용)
 - G3: 라인메모 구현 or 문서 제거
 - G5~G10: PWA·동시편집 경고·seed.json 배포 제외·접근성·테스트
+
+---
+
+## 7. 2회차 Re-Check (2026-06-28, Act 이후)
+
+### 갭 상태 갱신
+| Gap | 1회차 | 2회차 | 근거 |
+|---|---|---|---|
+| G1 저장 무음손실 | 🔴 | ✅ 해소 | 미저장 큐 배포(배포본 `ds_pending_v1` 확인) · anon REST로 cells 읽기/삭제차단 검증 · ⚠️ 오프라인 E2E는 수동(③) 대기 |
+| G2 RLS 개방 | 🔴 | ✅ 해소 | 라이브 DB 적용 · **삭제차단 E2E 검증**(테스트행 insert→anon delete 0건→생존 확인) · photos/web 목록차단(advisor clean) |
+| G4 change_log 미노출 | 🟡 | ✅ 해소 | 이력 화면+old_status 배포(배포본 `openHist`/`old_status` 확인) · anon REST change_log 읽기 200 |
+| G3 라인메모 문서불일치 | 🟡 | ⚠️ 잔존 | 문서(README:40·CLAUDE.md:55)는 "라인 메모" 주장, app.js 미구현 |
+| G5 PWA | 🟢 | ⚠️ 잔존 | manifest/SW 없음 |
+| G6 동시편집 경고 | 🟢 | ⚠️ 잔존 | last-write-wins |
+| G7 seed.json 배포 | 🟢 | ⚠️ 잔존 | `webapp/seed.json` 여전히 추적·배포 |
+| G8 접근성/모달 | 🟢 | ⚠️ 잔존 | Esc·포커스트랩 없음 |
+| G9 테스트 | 🟢 | 🟡 부분 | node --check + 부팅 스모크 도입, 정식 스위트 부재 |
+| (부가) web 구버전 사본 | — | ✅ 정리 | web 버킷 옛 앱 5파일 삭제(옛 URL 400) |
+
+### 재계산 Match Rate (static + 부분 runtime)
+| 축 | 1회차 | 2회차 | 비고 |
+|---|---:|---:|---|
+| Structural | 95% | 95% | 전 파일·부팅·라이브 정상 |
+| Functional | 85% | 92% | G4 추가, G3만 잔여 |
+| Contract | 80% | 90% | RLS·config·change_log 정합, G3만 불일치 |
+| **Overall** | **85%** | **≈92%** | **90% 돌파** |
+| Runtime 안전성 | 60% | ≈90% | API/보안 E2E 검증, 오프라인 UI(③)만 수동대기 |
+
+### 남은 Critical
+- **없음.** 잔여는 전부 Minor/문서 정합 수준.
+
+### 판단
+- Overall ≈92%로 **report 단계 진입 가능**. 단 **G3(문서가 없는 기능을 있다고 주장)**는 사용자 오해를 부르므로 보고 전 2분 doc-fix 권장.
+- G1 오프라인 전 사이클(③)은 사용자 수동 확인 권장(코드/배포/API는 검증됨).
