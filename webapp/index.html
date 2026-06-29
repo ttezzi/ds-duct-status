@@ -51,6 +51,16 @@
     <div id="grid" class="grid"></div>
   </main>
 
+  <!-- 바로가기(층·구역 점프) 플로팅 -->
+  <button id="navFab" class="nav-fab" title="바로가기 (층·구역)" aria-label="바로가기">🧭</button>
+  <div id="navPanel" class="nav-panel hidden">
+    <div class="nav-sec">층 바로가기</div>
+    <div id="navFloors" class="nav-chips"></div>
+    <div class="nav-sec">구역 바로가기</div>
+    <div id="navZones" class="nav-chips"></div>
+    <button id="navHome" class="nav-home">↖ 처음으로 (좌상단)</button>
+  </div>
+
   <!-- (라인+층) 통합 편집 -->
   <div id="editorModal" class="modal sheet hidden">
     <div class="modal-card editor">

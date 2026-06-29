@@ -739,6 +739,46 @@
     apply();
   })();
 
+  /* ---------- 바로가기(층·구역 점프) ---------- */
+  (function () {
+    const fab = document.getElementById("navFab"), panel = document.getElementById("navPanel");
+    if (!fab || !panel) return;
+    const stickyTop = () => { const t = gridEl.querySelector("thead"); return t ? t.getBoundingClientRect().height : 0; };
+    const frozenLeft = () => { const a = gridEl.querySelector(".corner.c-floor"), b = gridEl.querySelector(".corner.c-layer"); return (a ? a.offsetWidth : 0) + (b ? b.offsetWidth : 0); };
+    const flash = el => { if (!el) return; el.classList.remove("nav-flash"); void el.offsetWidth; el.classList.add("nav-flash"); setTimeout(() => el.classList.remove("nav-flash"), 1300); };
+    function scrollToFloor(floor) {
+      let row;
+      if (floor === "상부접점") row = gridEl.querySelector("tr.contact.upper");
+      else if (floor === "하부접점") row = gridEl.querySelector("tr.contact.lower");
+      else { const c = gridEl.querySelector(`td.c[data-key*="|${floor}|"]`); row = c ? c.closest("tr") : null; }
+      if (!row) return;
+      const gr = gw.getBoundingClientRect(), rr = row.getBoundingClientRect();
+      gw.scrollBy({ top: (rr.top - gr.top) - stickyTop() - 4, behavior: "smooth" });
+      flash(row.querySelector(".rl.floor") || row);
+    }
+    function scrollToZone(zone) {
+      const go = () => {
+        const th = [...gridEl.querySelectorAll("thead tr.part-row th[data-part]")].find(t => partById[t.dataset.part] && partById[t.dataset.part].zone === zone);
+        if (!th) return;
+        const gr = gw.getBoundingClientRect(), tr = th.getBoundingClientRect();
+        gw.scrollBy({ left: (tr.left - gr.left) - frozenLeft() - 4, behavior: "smooth" });
+        flash(th);
+      };
+      if (!enabledZones.has(zone)) { enabledZones.add(zone); saveZones(); buildZoneTabs(); renderGrid(); requestAnimationFrame(go); }
+      else go();
+    }
+    function build() {
+      const fl = document.getElementById("navFloors"); fl.innerHTML = "";
+      ["상부접점", ...SEED.floors, "하부접점"].forEach(f => { const b = document.createElement("button"); b.textContent = f; b.onclick = () => { scrollToFloor(f); close(); }; fl.appendChild(b); });
+      const zn = document.getElementById("navZones"); zn.innerHTML = "";
+      SEED.zones.forEach(z => { const b = document.createElement("button"); b.textContent = z; b.onclick = () => { scrollToZone(z); close(); }; zn.appendChild(b); });
+    }
+    const close = () => panel.classList.add("hidden");
+    fab.onclick = () => { if (panel.classList.contains("hidden")) { build(); panel.classList.remove("hidden"); } else close(); };
+    document.getElementById("navHome").onclick = () => { gw.scrollTo({ left: 0, top: 0, behavior: "smooth" }); close(); };
+    document.addEventListener("click", e => { if (!panel.classList.contains("hidden") && !panel.contains(e.target) && e.target !== fab) close(); });
+  })();
+
   /* ---------- 전일대비 ---------- */
   const diffBtn = document.getElementById("diffBtn");
   diffBtn.onclick = () => {
