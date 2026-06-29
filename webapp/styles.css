@@ -423,6 +423,12 @@ table.elev th,table.elev td{border-right:1px solid var(--line2);border-bottom:1p
 .login-foot{display:flex;gap:8px;justify-content:flex-end}
 .login-foot #logoutBtn{margin-right:auto}
 
+/* 우측 층 레일(항상 노출) — 탭하면 그 층으로 세로 이동 */
+.floor-rail{position:fixed;right:4px;top:50%;transform:translateY(-50%);z-index:39;display:flex;flex-direction:column;gap:2px;background:rgba(15,23,42,.5);backdrop-filter:blur(5px);border:1px solid rgba(148,163,184,.25);border-radius:12px;padding:4px 3px;box-shadow:0 6px 18px rgba(15,23,42,.28)}
+.floor-rail button{width:28px;min-height:21px;border:0;background:transparent;color:#dbe3ef;font-size:10px;font-weight:800;border-radius:7px;padding:1px 0;line-height:1.05}
+.floor-rail button:active{background:rgba(255,255,255,.22)}
+.floor-rail button.cur{background:#2563eb;color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.5)}
+
 /* 바로가기(층·구역 점프) 플로팅 */
 .nav-fab{position:fixed;right:14px;bottom:16px;z-index:40;width:52px;height:52px;border-radius:50%;border:0;background:linear-gradient(180deg,#3b82f6,#2563eb);color:#fff;font-size:22px;box-shadow:0 10px 24px rgba(37,99,235,.42);display:grid;place-items:center;transition:transform .15s ease}
 .nav-fab:active{transform:scale(.92)}

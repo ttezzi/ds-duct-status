@@ -487,6 +487,18 @@
     if (!enabledZones.has(p.zone)) { enabledZones.add(p.zone); saveZones(); buildZoneTabs(); renderGrid(); requestAnimationFrame(go); }
     else go();
   }
+  // 현재 격자 상단(고정헤더 바로 아래)에 걸친 층 — 층 레일 하이라이트용
+  function currentTopFloor() {
+    try {
+      if (typeof document.elementFromPoint !== "function") return null;
+      const gr = gw.getBoundingClientRect();
+      const el = document.elementFromPoint(gr.left + navFrozenLeft() + 10, gr.top + navStickyTop() + 6);
+      const tr = el && el.closest ? el.closest("tr") : null; if (!tr) return null;
+      const c = tr.querySelector("td.c[data-key]"); if (c && c.dataset && c.dataset.key) return c.dataset.key.split("|")[1];
+      if (tr.classList && tr.classList.contains("contact")) return tr.classList.contains("upper") ? "상부접점" : "하부접점";
+      return null;
+    } catch (e) { return null; }
+  }
 
   /* ---------- (라인+층) 통합 편집 ---------- */
   const editorModal = document.getElementById("editorModal");
@@ -800,6 +812,20 @@
     fab.onclick = () => { if (panel.classList.contains("hidden")) { build(); panel.classList.remove("hidden"); } else close(); };
     document.getElementById("navHome").onclick = () => { gw.scrollTo({ left: 0, top: 0, behavior: "smooth" }); close(); };
     document.addEventListener("click", e => { if (!panel.classList.contains("hidden") && !panel.contains(e.target) && e.target !== fab) close(); });
+  })();
+
+  /* ---------- 우측 층 레일(항상 노출) ---------- */
+  (function () {
+    const rail = document.getElementById("floorRail"); if (!rail) return;
+    const items = [["상부접점", "상"]].concat(SEED.floors.map(f => [f, f.replace("F", "")])).concat([["하부접점", "하"]]);
+    items.forEach(([floor, label]) => {
+      const b = document.createElement("button"); b.textContent = label; b.dataset.floor = floor; b.title = floor;
+      b.onclick = () => scrollToFloor(floor); rail.appendChild(b);
+    });
+    let raf = 0;
+    const highlight = () => { raf = 0; const cur = currentTopFloor(); rail.querySelectorAll("button").forEach(b => b.classList.toggle("cur", b.dataset.floor === cur)); };
+    gw.addEventListener("scroll", () => { if (!raf) raf = requestAnimationFrame(highlight); }, { passive: true });
+    highlight();
   })();
 
   /* ---------- 전일대비 ---------- */
