@@ -37,9 +37,10 @@ create table if not exists public.change_log (
   ts          timestamptz default now()
 );
 
--- 실시간 발행
+-- 실시간 발행 (change_log 포함 → 변경 이력 실시간 갱신)
 alter publication supabase_realtime add table public.cells;
 alter publication supabase_realtime add table public.notes;
+alter publication supabase_realtime add table public.change_log;
 
 -- RLS (익명 링크 공유) — 안전 강화판
 --  · cells : 읽기/추가/수정만 허용, DELETE 차단(앱은 upsert만 사용 → 전체 삭제 공격 방지)

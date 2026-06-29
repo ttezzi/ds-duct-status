@@ -41,6 +41,7 @@
   /* ---------- Store ---------- */
   function makeStore() {
     const over = new Map(), notes = new Map(), subs = [];
+    let logRows = null; const logSubs = [];   // 변경이력 캐시(즉시 표시) + 실시간 리스너
     const pending = new Map();            // 미저장(저장 실패) 큐 — 새로고침에도 살아남음
     let backend = null;
     const PK = "ds_pending_v1";
@@ -102,7 +103,10 @@
         await this.setNote(pk, arr.length ? JSON.stringify(arr) : "", meta);
       },
       hasBackendPhoto() { return !!(backend && backend.uploadPhoto); },
-      async loadLog(n) { return backend && backend.loadLog ? backend.loadLog(n) : []; },
+      async loadLog(n) { const rows = (backend && backend.loadLog) ? await backend.loadLog(n) : []; logRows = rows; return rows; },
+      logCached() { return logRows; },
+      _pushLog(r) { if (logRows) { logRows.unshift(r); if (logRows.length > 800) logRows.length = 800; } logSubs.forEach(f => f()); },
+      onLog(cb) { logSubs.push(cb); },
       cloud() { return store.mode === "cloud"; },
       attach(b) { backend = b; },
       async trackPresence() { if (backend && backend.trackPresence) { try { await backend.trackPresence(); } catch (e) {} } },
@@ -142,6 +146,7 @@
         }
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "notes" }, p => { const r = p.new || p.old; if (r && r.key) { store._note(r.key, p.new ? p.new.body : ""); store.emit("note:" + r.key); } })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "change_log" }, p => { if (p.new) store._pushLog(p.new); })   // 변경이력 실시간
       .subscribe();
     // 현재 접속 인원(presence) — 탭마다 고유키로 추적
     const tabId = "t" + Math.random().toString(36).slice(2) + "_" + Date.now();
@@ -830,16 +835,18 @@
   async function openHist() {
     if (!store.cloud()) { toast("변경 이력은 실시간(클라우드) 모드에서만 조회됩니다"); return; }
     const body = document.getElementById("histBody");
-    body.innerHTML = `<div class="hist-loading">불러오는 중…</div>`;
     histModal.classList.remove("hidden");
-    let rows = [];
-    try { rows = await store.loadLog(500); }
-    catch (e) { body.innerHTML = `<div class="hist-loading">조회 실패: ${escAttr(e.message)}</div>`; return; }
-    renderHist(rows);
+    const cached = store.logCached();
+    if (cached) renderHist(cached);                                   // 캐시 즉시 표시 — 딜레이 제거
+    else body.innerHTML = `<div class="hist-loading">불러오는 중…</div>`;
+    try { renderHist(await store.loadLog(500)); }                     // 최신으로 백그라운드 갱신
+    catch (e) { if (!cached) body.innerHTML = `<div class="hist-loading">조회 실패: ${escAttr(e.message)}</div>`; }
   }
+  // 실시간으로 새 이력이 들어오면 열려 있는 모달 즉시 갱신
+  store.onLog(() => { if (!histModal.classList.contains("hidden")) renderHist(store.logCached() || []); });
   function renderHist(rows) {
     const body = document.getElementById("histBody");
-    const dayOf = ts => String(ts || "").slice(0, 10);
+    const dayOf = ts => { if (!ts) return ""; const d = new Date(ts); if (isNaN(d)) return String(ts).slice(0, 10); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };   // 로컬(KST) 일자 기준
     const chip = st => (st == null || st === "")
       ? `<span class="hchip none">—</span>`
       : `<span class="hchip"><span class="sw" style="background:${st === "none" ? "#fff" : (STCOLOR[st] || "#fff")}"></span>${escAttr(STLABEL[st] || st)}</span>`;
@@ -965,6 +972,7 @@
         store.reapplyPending();            // 직전 세션의 미저장분 복원(서버값 덮어쓰기 방지)
         connBase = { text: "실시간", cls: "conn cloud" }; paintConn(); renderGrid(); buildDateNav();
         store.flush();                     // 미저장분 재전송
+        store.loadLog(500).catch(() => {});   // 변경이력 미리 캐시 → 첫 조회도 즉시 표시
       }
       catch (e) { console.error(e); store.attach(localBackend()); connBase = { text: "로컬(연결실패)", cls: "conn err" }; paintConn(); toast("클라우드 연결 실패 → 로컬"); renderGrid(); }
     } else { store.attach(localBackend()); connBase = { text: "로컬", cls: "conn local" }; paintConn(); renderGrid(); }
