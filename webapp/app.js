@@ -729,6 +729,16 @@
   });
   searchClear.onclick = () => { searchInput.value = ""; searchQ = ""; searchClear.classList.add("hidden"); buildZoneTabs(); renderGrid(); };
 
+  /* ---------- 헤더 도구 접기(모바일 격자 공간 확보) ---------- */
+  (function () {
+    const tb = document.getElementById("toolbar"), tg = document.getElementById("toolsToggle");
+    if (!tb || !tg) return;
+    let open = localStorage.getItem("ds_tools_open") === "1";   // 기본 접힘
+    const apply = () => { tb.classList.toggle("collapsed", !open); tg.textContent = open ? "✕ 도구" : "⋯ 도구"; tg.setAttribute("aria-expanded", open ? "true" : "false"); };
+    tg.onclick = () => { open = !open; localStorage.setItem("ds_tools_open", open ? "1" : "0"); apply(); };
+    apply();
+  })();
+
   /* ---------- 전일대비 ---------- */
   const diffBtn = document.getElementById("diffBtn");
   diffBtn.onclick = () => {

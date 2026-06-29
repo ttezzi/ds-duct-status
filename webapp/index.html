@@ -16,27 +16,30 @@
 <body>
   <header id="topbar">
     <div class="brand">P4 Ph2 입상덕트 설치현황</div>
+    <button id="toolsToggle" class="tools-toggle" title="도구 펼치기/접기" aria-expanded="false">⋯ 도구</button>
     <div id="zoneTabs" class="zone-tabs"></div>
     <div class="search-wrap">
       <input id="searchInput" type="search" placeholder="성상·SIZE·덕트NO 검색 (예: 1200A, ACID)" />
       <button id="searchClear" title="검색 지우기" class="hidden">✕</button>
     </div>
     <div class="spacer"></div>
-    <div id="dateNav" class="date-nav" title="화살표로 날짜별 변경 확인">
-      <button id="datePrev" title="이전 날짜">◀</button>
-      <span id="dateLabel" class="date-label"></span>
-      <button id="dateNext" title="다음 날짜">▶</button>
+    <div id="toolbar" class="toolbar">
+      <div id="dateNav" class="date-nav" title="화살표로 날짜별 변경 확인">
+        <button id="datePrev" title="이전 날짜">◀</button>
+        <span id="dateLabel" class="date-label"></span>
+        <button id="dateNext" title="다음 날짜">▶</button>
+      </div>
+      <button id="dashBtn" class="btn-dash" title="대시보드">📊 대시보드</button>
+      <button id="histBtn" class="btn-dash" title="변경 이력 (누가·언제·무엇을)">📜 이력</button>
+      <button id="diffBtn" class="btn-diff" title="전일 대비 변경 표시 (설치·간섭)">전일대비</button>
+      <div class="zoom-ctrls">
+        <button id="zoomOut" title="축소">－</button>
+        <button id="zoomReset" title="원래대로">100%</button>
+        <button id="zoomIn" title="확대">＋</button>
+      </div>
+      <button id="exportBtn" class="btn-export" title="엑셀로 내보내기">엑셀 ⬇</button>
+      <button id="userBtn" class="btn-user" title="사용자 변경"><span id="userLabel">사용자</span></button>
     </div>
-    <button id="dashBtn" class="btn-dash" title="대시보드">📊 대시보드</button>
-    <button id="histBtn" class="btn-dash" title="변경 이력 (누가·언제·무엇을)">📜 이력</button>
-    <button id="diffBtn" class="btn-diff" title="전일 대비 변경 표시 (설치·간섭)">전일대비</button>
-    <div class="zoom-ctrls">
-      <button id="zoomOut" title="축소">－</button>
-      <button id="zoomReset" title="원래대로">100%</button>
-      <button id="zoomIn" title="확대">＋</button>
-    </div>
-    <button id="exportBtn" class="btn-export" title="엑셀로 내보내기">엑셀 ⬇</button>
-    <button id="userBtn" class="btn-user" title="사용자 변경"><span id="userLabel">사용자</span></button>
     <span id="presence" class="presence hidden" title="현재 접속 인원">👥 0</span>
     <span id="connState" class="conn local" title="저장 모드">로컬</span>
   </header>

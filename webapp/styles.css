@@ -78,6 +78,10 @@ button{font-family:inherit;cursor:pointer}
 .btn-diff.on{background:linear-gradient(180deg,#fbbf24,#f59e0b);color:#1f2937;box-shadow:0 8px 16px rgba(245,158,11,.22)}
 .btn-export{background:linear-gradient(180deg,#10b981,#059669);color:#fff;box-shadow:0 8px 16px rgba(5,150,105,.22)}
 .btn-user{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.08)}
+/* 헤더 도구 묶음 + 접기 토글 (모바일에서 격자 공간 확보) */
+#topbar .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tools-toggle{display:none;background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:7px 12px;font-size:12px;font-weight:800;min-height:34px;white-space:nowrap}
+.tools-toggle:hover{background:rgba(255,255,255,.22)}
 .conn{font-size:11px;padding:5px 8px;border-radius:999px;font-weight:800;letter-spacing:.01em;border:1px solid transparent}
 .conn.local{background:#92400e;color:#fde68a}.conn.cloud{background:#065f46;color:#a7f3d0}.conn.err{background:#7f1d1d;color:#fecaca}
 .conn.has-pending{background:#b45309;color:#fff;animation:pendpulse 1.4s ease-in-out infinite}
@@ -348,12 +352,17 @@ table.elev th,table.elev td{border-right:1px solid var(--line2);border-bottom:1p
 @media (max-width:760px){
   :root{--rowlbl:38px;--laylbl:24px;--headh:94px}
   #topbar{gap:6px;padding:8px 10px}
-  .brand{flex-basis:100%;font-size:16px;min-width:0;white-space:normal}
-  .zone-tabs{flex:1 1 auto;flex-wrap:nowrap;overflow-x:auto;padding:3px 4px}
+  .brand{order:0;flex-basis:100%;font-size:16px;min-width:0;white-space:normal}
+  .tools-toggle{display:inline-flex;align-items:center;order:1}
+  #presence{order:2}
+  #connState{order:3}
+  .zone-tabs{order:4;flex:1 1 100%;flex-wrap:nowrap;overflow-x:auto;padding:3px 4px}
   .zone-tabs button{flex:0 0 auto}
   .search-wrap{order:5;flex:1 1 100%}
   .search-wrap input{width:100%}
   .spacer{display:none}
+  #topbar .toolbar{order:6;flex:1 1 100%;gap:6px;justify-content:flex-start}
+  #topbar .toolbar.collapsed{display:none}
   .btn-export,.btn-user,.btn-dash,.btn-diff{padding:6px 8px;font-size:11px;min-height:32px}
   .legend-bar{display:none}
   .status-strip{font-size:10px;gap:8px;padding:6px 8px}
