@@ -104,6 +104,12 @@
       },
       hasBackendPhoto() { return !!(backend && backend.uploadPhoto); },
       async loadLog(n) { const rows = (backend && backend.loadLog) ? await backend.loadLog(n) : []; logRows = rows; return rows; },
+      async loadPhotos() {   // ph: 노트 모음(업로드 사진 갤러리용)
+        let rows = [];
+        if (backend && backend.loadPhotos) { try { rows = await backend.loadPhotos(); } catch (e) {} }
+        if (!rows.length) notes.forEach((body, key) => { if (key.indexOf("ph:") === 0 && body) rows.push({ key, body }); });
+        return rows;
+      },
       logCached() { return logRows; },
       _pushLog(r) { if (logRows) { logRows.unshift(r); if (logRows.length > 800) logRows.length = 800; } logSubs.forEach(f => f()); },
       onLog(cb) { logSubs.push(cb); },
@@ -178,6 +184,10 @@
         const { data, error } = await sb.from("change_log")
           .select("cell_key,old_status,new_status,user_name,team,ts")
           .order("ts", { ascending: false }).limit(limit || 300);
+        if (error) throw error; return data || [];
+      },
+      async loadPhotos() {
+        const { data, error } = await sb.from("notes").select("key,body,updated_by,updated_at").like("key", "ph:%");
         if (error) throw error; return data || [];
       },
     };
@@ -673,14 +683,15 @@
 
   const dashModal = document.getElementById("dashModal");
   const histModal = document.getElementById("histModal");
+  const photoGalModal = document.getElementById("photoGalModal");
   function closeModals() {
-    [editorModal, textModal, nameModal, dashModal, histModal].forEach(m => m.classList.add("hidden"));
+    [editorModal, textModal, nameModal, dashModal, histModal, photoGalModal].forEach(m => m.classList.add("hidden"));
     gridEl.querySelectorAll("td.sel").forEach(e => e.classList.remove("sel")); textKey = null; edPart = null;
   }
   document.querySelectorAll("[data-close]").forEach(b => b.onclick = closeModals);
-  [editorModal, textModal, dashModal, histModal, nameModal].forEach(m => m.addEventListener("click", e => { if (e.target === m) closeModals(); }));
+  [editorModal, textModal, dashModal, histModal, nameModal, photoGalModal].forEach(m => m.addEventListener("click", e => { if (e.target === m) closeModals(); }));
   // Esc 로 열린 모달 닫기(접근성)
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && [editorModal, textModal, nameModal, dashModal, histModal].some(m => !m.classList.contains("hidden"))) closeModals(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && [editorModal, textModal, nameModal, dashModal, histModal, photoGalModal].some(m => !m.classList.contains("hidden"))) closeModals(); });
 
   /* ---------- 격자 클릭 ---------- */
   gridEl.addEventListener("click", e => {
@@ -933,6 +944,31 @@
     const sel = document.getElementById("histDate"); if (sel) sel.onchange = () => { histDate = sel.value; renderHist(rows); };
   }
   document.getElementById("histBtn").onclick = openHist;
+
+  /* ---------- 사진 모아보기 ---------- */
+  async function openPhotos() {
+    const body = document.getElementById("photoGalBody");
+    body.innerHTML = `<div class="pg-empty">불러오는 중…</div>`;
+    photoGalModal.classList.remove("hidden");
+    let rows = [];
+    try { rows = await store.loadPhotos(); } catch (e) {}
+    const entries = [];
+    rows.forEach(r => {
+      let urls = []; try { urls = JSON.parse(r.body || "[]"); } catch (e) {}
+      const a = String(r.key).split(":"), p = partById[a[1]];
+      urls.forEach(url => entries.push({ url, pid: a[1], no: p ? p.part_no : a[1], floor: a[2], zone: p ? p.zone : "", by: r.updated_by || "" }));
+    });
+    if (!entries.length) { body.innerHTML = `<div class="pg-empty">업로드된 사진이 없습니다.</div>`; return; }
+    body.innerHTML = `<div class="pg-count">사진 ${entries.length}장 · 사진을 누르면 원본, 라벨을 누르면 해당 칸으로 이동</div>` +
+      `<div class="pg-grid">` + entries.map(e =>
+        `<div class="pg-card"><img src="${escAttr(e.url)}" loading="lazy" alt="현장사진"><div class="pg-cap"><b>${escAttr(e.no)}</b> · ${escAttr(e.floor)}<span>${escAttr(e.zone)}${e.by ? " · " + escAttr(e.by) : ""}</span></div></div>`).join("") + `</div>`;
+    const cards = body.querySelectorAll(".pg-card");
+    cards.forEach((card, i) => {
+      card.querySelector("img").onclick = () => window.open(entries[i].url, "_blank");
+      card.querySelector(".pg-cap").onclick = () => { closeModals(); openEditor(entries[i].pid, entries[i].floor); };
+    });
+  }
+  document.getElementById("galBtn").onclick = openPhotos;
 
   /* ---------- 줌(포인터 중심) ---------- */
   let cellPx = 30;
