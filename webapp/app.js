@@ -233,9 +233,11 @@
   const gridEl = document.getElementById("grid");
   const gw = document.getElementById("gridWrap");
 
+  const partHay = p => [p.part_no, p.seong, p.size, p.yeolsu, p.zone, p.to].filter(Boolean).join(" ").toLowerCase();
+  // 여러 조건은 띄어쓰기로 AND — 토큰 전부 만족해야 매칭 (예: "ACID 1200A")
   function matchPart(p, q) {
-    const hay = [p.part_no, p.seong, p.size, p.yeolsu, p.zone, p.to].filter(Boolean).join(" ").toLowerCase();
-    return hay.includes(q);
+    const hay = partHay(p);
+    return q.split(/\s+/).filter(Boolean).every(t => hay.indexOf(t) >= 0);
   }
 
   function computeParts() {
@@ -752,11 +754,9 @@
   function buildSuggest(q) {
     if (!q) { hideSuggest(); return; }
     const ql = q.toLowerCase();
-    const matches = SEED.parts.filter(p =>
-      (p.part_no && p.part_no.toLowerCase().indexOf(ql) >= 0) ||
-      (p.seong && p.seong.toLowerCase().indexOf(ql) >= 0) ||
-      (p.size && String(p.size).toLowerCase().indexOf(ql) >= 0)
-    ).sort((a, b) => rankNo(a, ql) - rankNo(b, ql));
+    const tokens = ql.split(/\s+/).filter(Boolean);   // 여러 조건 AND
+    const matches = SEED.parts.filter(p => { const hay = partHay(p); return tokens.every(t => hay.indexOf(t) >= 0); })
+      .sort((a, b) => rankNo(a, tokens[0] || ql) - rankNo(b, tokens[0] || ql));
     const top = matches.slice(0, 40);
     let html = "";
     if (matches.length > 1) html += `<button class="sg-filter" data-filter="1">🔎 '${escAttr(q)}' 결과 ${matches.length}개만 보기 (필터)</button>`;
