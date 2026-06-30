@@ -161,6 +161,26 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
   <script src="app.js"></script>
-  <script>if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})});}</script>
+  <script>
+  if ("serviceWorker" in navigator) {
+    var hadController = !!navigator.serviceWorker.controller, refreshing = false;
+    // 새 SW가 제어권을 잡으면 페이지 자동 새로고침(최초 설치 땐 새로고침 안 함)
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (!hadController || refreshing) return; refreshing = true; location.reload();
+    });
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").then(function (reg) {
+        reg.addEventListener("updatefound", function () {
+          var nw = reg.installing; if (!nw) return;
+          nw.addEventListener("statechange", function () {
+            if (nw.state === "installed" && navigator.serviceWorker.controller) { if (nw.postMessage) nw.postMessage("skipWaiting"); }
+          });
+        });
+        setInterval(function () { reg.update().catch(function () {}); }, 60000);   // 1분마다 새 버전 확인
+        document.addEventListener("visibilitychange", function () { if (!document.hidden) reg.update().catch(function () {}); });
+      }).catch(function () {});
+    });
+  }
+  </script>
 </body>
 </html>
