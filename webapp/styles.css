@@ -48,8 +48,8 @@ button{font-family:inherit;cursor:pointer}
 #topbar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(15,23,42,.92);color:#fff;flex:0 0 auto;z-index:30;flex-wrap:wrap;position:sticky;top:0;backdrop-filter:saturate(150%) blur(10px);box-shadow:0 8px 24px rgba(15,23,42,.18);border-bottom:1px solid rgba(148,163,184,.18)}
 .brand{display:flex;flex-direction:column;gap:2px;font-weight:800;font-size:19px;line-height:1.15;white-space:nowrap;min-width:220px}
 .upd{font-weight:500;font-size:11px;color:#cbd5e1;opacity:.82}
-.zone-tabs{display:flex;gap:5px;flex-wrap:wrap;padding:4px;background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.16);border-radius:14px}
-.zone-tabs button{background:rgba(255,255,255,.08);color:#e2e8f0;border:1px solid rgba(255,255,255,.06);border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;border-bottom:0;min-height:32px;transition:transform .16s ease,background .16s ease,border-color .16s ease,box-shadow .16s ease}
+.zone-tabs{display:flex;gap:5px;flex-wrap:wrap;padding:4px;background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.16);border-radius:10px}
+.zone-tabs button{background:rgba(255,255,255,.08);color:#e2e8f0;border:1px solid rgba(255,255,255,.06);border-radius:7px;padding:6px 11px;font-size:12px;font-weight:700;border-bottom:0;min-height:32px;transition:transform .16s ease,background .16s ease,border-color .16s ease,box-shadow .16s ease}
 .zone-tabs button:hover{transform:translateY(-1px);background:rgba(255,255,255,.14)}
 .zone-tabs button.active{background:#fff;color:#0f172a;box-shadow:0 6px 16px rgba(15,23,42,.15)}
 .zone-tabs button[data-z="0"].active{border-color:var(--z0)}
