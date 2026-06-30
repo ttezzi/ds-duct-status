@@ -19,8 +19,9 @@
     <button id="toolsToggle" class="tools-toggle" title="도구 펼치기/접기" aria-expanded="false">⋯ 도구</button>
     <div id="zoneTabs" class="zone-tabs"></div>
     <div class="search-wrap">
-      <input id="searchInput" type="search" placeholder="성상·SIZE 검색 · 덕트NO 입력 시 바로가기 (예: F1, E23, ACID)" />
+      <input id="searchInput" type="search" autocomplete="off" placeholder="덕트NO·성상·SIZE 검색 (예: F1, E23, ACID)" />
       <button id="searchClear" title="검색 지우기" class="hidden">✕</button>
+      <div id="searchSuggest" class="search-suggest hidden"></div>
     </div>
     <div class="spacer"></div>
     <div id="toolbar" class="toolbar">
@@ -50,19 +51,6 @@
   <main id="gridWrap">
     <div id="grid" class="grid"></div>
   </main>
-
-  <!-- 바로가기(층·구역 점프) 플로팅 -->
-  <button id="navFab" class="nav-fab" title="바로가기 (층·구역)" aria-label="바로가기">🧭</button>
-  <div id="navPanel" class="nav-panel hidden">
-    <div class="nav-sec">층 바로가기</div>
-    <div id="navFloors" class="nav-chips"></div>
-    <div class="nav-sec">구역 바로가기</div>
-    <div id="navZones" class="nav-chips"></div>
-    <button id="navHome" class="nav-home">↖ 처음으로 (좌상단)</button>
-  </div>
-
-  <!-- 우측 층 레일(항상 노출) -->
-  <div id="floorRail" class="floor-rail" aria-label="층 바로가기"></div>
 
   <!-- (라인+층) 통합 편집 -->
   <div id="editorModal" class="modal sheet hidden">

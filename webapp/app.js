@@ -449,32 +449,10 @@
     const ct = gridEl.querySelector(`td[data-count-part="${cssEsc(a[0])}"]`); if (ct) setCount(ct, a[0]);
   }
 
-  /* ---------- 네비게이션 점프 공용 헬퍼(층·구역·덕트 바로가기) ---------- */
+  /* ---------- 덕트 바로가기 점프 헬퍼 ---------- */
   const partByNo = {}; SEED.parts.forEach(p => { if (p.part_no) partByNo[String(p.part_no).toLowerCase()] = p; });
-  const navStickyTop = () => { const t = gridEl.querySelector("thead"); return t ? t.getBoundingClientRect().height : 0; };
   const navFrozenLeft = () => { const a = gridEl.querySelector(".corner.c-floor"), b = gridEl.querySelector(".corner.c-layer"); return (a ? a.offsetWidth : 0) + (b ? b.offsetWidth : 0); };
   function navFlash(el) { if (!el) return; el.classList.remove("nav-flash"); void el.offsetWidth; el.classList.add("nav-flash"); setTimeout(() => el.classList.remove("nav-flash"), 1300); }
-  function scrollToFloor(floor) {
-    let row;
-    if (floor === "상부접점") row = gridEl.querySelector("tr.contact.upper");
-    else if (floor === "하부접점") row = gridEl.querySelector("tr.contact.lower");
-    else { const c = gridEl.querySelector(`td.c[data-key*="|${floor}|"]`); row = c ? c.closest("tr") : null; }
-    if (!row) return;
-    const gr = gw.getBoundingClientRect(), rr = row.getBoundingClientRect();
-    gw.scrollBy({ top: (rr.top - gr.top) - navStickyTop() - 4, behavior: "smooth" });
-    navFlash(row.querySelector(".rl.floor") || row);
-  }
-  function scrollToZone(zone) {
-    const go = () => {
-      const th = [...gridEl.querySelectorAll("thead tr.part-row th[data-part]")].find(t => partById[t.dataset.part] && partById[t.dataset.part].zone === zone);
-      if (!th) return;
-      const gr = gw.getBoundingClientRect(), tr = th.getBoundingClientRect();
-      gw.scrollBy({ left: (tr.left - gr.left) - navFrozenLeft() - 4, behavior: "smooth" });
-      navFlash(th);
-    };
-    if (!enabledZones.has(zone)) { enabledZones.add(zone); saveZones(); buildZoneTabs(); renderGrid(); requestAnimationFrame(go); }
-    else go();
-  }
   function jumpToPart(pid) {
     const p = partById[pid]; if (!p) return;
     const go = () => {
@@ -486,18 +464,6 @@
     };
     if (!enabledZones.has(p.zone)) { enabledZones.add(p.zone); saveZones(); buildZoneTabs(); renderGrid(); requestAnimationFrame(go); }
     else go();
-  }
-  // 현재 격자 상단(고정헤더 바로 아래)에 걸친 층 — 층 레일 하이라이트용
-  function currentTopFloor() {
-    try {
-      if (typeof document.elementFromPoint !== "function") return null;
-      const gr = gw.getBoundingClientRect();
-      const el = document.elementFromPoint(gr.left + navFrozenLeft() + 10, gr.top + navStickyTop() + 6);
-      const tr = el && el.closest ? el.closest("tr") : null; if (!tr) return null;
-      const c = tr.querySelector("td.c[data-key]"); if (c && c.dataset && c.dataset.key) return c.dataset.key.split("|")[1];
-      if (tr.classList && tr.classList.contains("contact")) return tr.classList.contains("upper") ? "상부접점" : "하부접점";
-      return null;
-    } catch (e) { return null; }
   }
 
   /* ---------- (라인+층) 통합 편집 ---------- */
@@ -768,25 +734,46 @@
 
   /* ---------- 검색 ---------- */
   const searchInput = document.getElementById("searchInput"), searchClear = document.getElementById("searchClear");
-  let searchT = null;
-  searchInput.addEventListener("input", () => {
-    clearTimeout(searchT);
-    searchT = setTimeout(() => {
-      const raw = searchInput.value.trim();
-      searchClear.classList.toggle("hidden", !raw);
-      const exact = partByNo[raw.toLowerCase()];
-      if (exact) {   // 덕트NO 정확히 입력 → 필터(숨김) 대신 그 열로 이동 + 깜빡 강조
-        searchQ = ""; buildZoneTabs(); renderGrid();
-        jumpToPart(exact.id);
-        toast(`${exact.part_no} 위치로 이동 · ${exact.zone}${exact.size ? " · " + exact.size : ""}`);
-        return;
-      }
-      searchQ = raw.toLowerCase();
-      buildZoneTabs(); renderGrid();
-      if (searchQ) toast(`'${raw}' 검색: ${currentParts.length}개 라인`);
-    }, 200);
+  const suggest = document.getElementById("searchSuggest");
+  const hideSuggest = () => { suggest.classList.add("hidden"); suggest.innerHTML = ""; };
+  const rankNo = (p, ql) => { const n = (p.part_no || "").toLowerCase(); return n === ql ? 0 : n.indexOf(ql) === 0 ? 1 : n.indexOf(ql) >= 0 ? 2 : 3; };
+  function applyFilter(q) {   // 성상·SIZE 등 다중 매칭 → 그 열만 보기(기존 필터)
+    searchQ = q.toLowerCase(); searchClear.classList.remove("hidden");
+    buildZoneTabs(); renderGrid(); hideSuggest(); searchInput.blur();
+    toast(`'${q}' 검색: ${currentParts.length}개 라인`);
+  }
+  function jumpFromSuggest(pid) {   // 후보 탭 → 그 덕트 열로 이동(필터 아님, 전체 맥락 유지)
+    const p = partById[pid]; if (!p) return;
+    searchInput.value = p.part_no; searchClear.classList.remove("hidden");
+    searchQ = ""; buildZoneTabs(); renderGrid();
+    jumpToPart(pid); hideSuggest(); searchInput.blur();
+    toast(`${p.part_no} 위치로 이동 · ${p.zone}`);
+  }
+  function buildSuggest(q) {
+    if (!q) { hideSuggest(); return; }
+    const ql = q.toLowerCase();
+    const matches = SEED.parts.filter(p =>
+      (p.part_no && p.part_no.toLowerCase().indexOf(ql) >= 0) ||
+      (p.seong && p.seong.toLowerCase().indexOf(ql) >= 0) ||
+      (p.size && String(p.size).toLowerCase().indexOf(ql) >= 0)
+    ).sort((a, b) => rankNo(a, ql) - rankNo(b, ql));
+    const top = matches.slice(0, 40);
+    let html = "";
+    if (matches.length > 1) html += `<button class="sg-filter" data-filter="1">🔎 '${escAttr(q)}' 결과 ${matches.length}개만 보기 (필터)</button>`;
+    if (!top.length) html += `<div class="sg-empty">일치하는 덕트가 없습니다</div>`;
+    else html += top.map(p => `<button data-pid="${escAttr(p.id)}"><span class="sg-no">${escAttr(p.part_no)}</span><span class="sg-meta">${escAttr(p.size || "")}${p.seong ? " · " + escAttr(p.seong) : ""}</span><span class="sg-zone">${escAttr(p.zone)}</span></button>`).join("");
+    suggest.innerHTML = html; suggest.classList.remove("hidden");
+    const f = suggest.querySelector("[data-filter]"); if (f) f.onclick = () => applyFilter(q);
+    suggest.querySelectorAll("button[data-pid]").forEach(b => b.onclick = () => jumpFromSuggest(b.dataset.pid));
+  }
+  searchInput.addEventListener("input", () => { const raw = searchInput.value.trim(); searchClear.classList.toggle("hidden", !raw); buildSuggest(raw); });
+  searchInput.addEventListener("focus", () => { const raw = searchInput.value.trim(); if (raw) buildSuggest(raw); });
+  searchInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); const raw = searchInput.value.trim(); if (!raw) return; const exact = partByNo[raw.toLowerCase()]; if (exact) jumpFromSuggest(exact.id); else applyFilter(raw); }
+    else if (e.key === "Escape") hideSuggest();
   });
-  searchClear.onclick = () => { searchInput.value = ""; searchQ = ""; searchClear.classList.add("hidden"); buildZoneTabs(); renderGrid(); };
+  document.addEventListener("click", e => { if (!e.target.closest(".search-wrap")) hideSuggest(); });
+  searchClear.onclick = () => { searchInput.value = ""; searchQ = ""; searchClear.classList.add("hidden"); hideSuggest(); buildZoneTabs(); renderGrid(); };
 
   /* ---------- 헤더 도구 접기(모바일 격자 공간 확보) ---------- */
   (function () {
@@ -798,35 +785,6 @@
     apply();
   })();
 
-  /* ---------- 바로가기 플로팅 패널(층·구역) ---------- */
-  (function () {
-    const fab = document.getElementById("navFab"), panel = document.getElementById("navPanel");
-    if (!fab || !panel) return;
-    const close = () => panel.classList.add("hidden");
-    function build() {
-      const fl = document.getElementById("navFloors"); fl.innerHTML = "";
-      ["상부접점", ...SEED.floors, "하부접점"].forEach(f => { const b = document.createElement("button"); b.textContent = f; b.onclick = () => { scrollToFloor(f); close(); }; fl.appendChild(b); });
-      const zn = document.getElementById("navZones"); zn.innerHTML = "";
-      SEED.zones.forEach(z => { const b = document.createElement("button"); b.textContent = z; b.onclick = () => { scrollToZone(z); close(); }; zn.appendChild(b); });
-    }
-    fab.onclick = () => { if (panel.classList.contains("hidden")) { build(); panel.classList.remove("hidden"); } else close(); };
-    document.getElementById("navHome").onclick = () => { gw.scrollTo({ left: 0, top: 0, behavior: "smooth" }); close(); };
-    document.addEventListener("click", e => { if (!panel.classList.contains("hidden") && !panel.contains(e.target) && e.target !== fab) close(); });
-  })();
-
-  /* ---------- 우측 층 레일(항상 노출) ---------- */
-  (function () {
-    const rail = document.getElementById("floorRail"); if (!rail) return;
-    const items = [["상부접점", "상"]].concat(SEED.floors.map(f => [f, f.replace("F", "")])).concat([["하부접점", "하"]]);
-    items.forEach(([floor, label]) => {
-      const b = document.createElement("button"); b.textContent = label; b.dataset.floor = floor; b.title = floor;
-      b.onclick = () => scrollToFloor(floor); rail.appendChild(b);
-    });
-    let raf = 0;
-    const highlight = () => { raf = 0; const cur = currentTopFloor(); rail.querySelectorAll("button").forEach(b => b.classList.toggle("cur", b.dataset.floor === cur)); };
-    gw.addEventListener("scroll", () => { if (!raf) raf = requestAnimationFrame(highlight); }, { passive: true });
-    highlight();
-  })();
 
   /* ---------- 전일대비 ---------- */
   const diffBtn = document.getElementById("diffBtn");

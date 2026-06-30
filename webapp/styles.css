@@ -60,7 +60,7 @@ button{font-family:inherit;cursor:pointer}
 .zone-tabs button.off:hover{opacity:.7}
 .zone-tabs button.zt-all{background:rgba(255,255,255,.06);color:#cbd5e1;border-style:dashed}
 .zone-tabs button.zt-all.active{background:rgba(56,189,248,.18);color:#e0f2fe;border-color:#38bdf8;border-style:solid}
-.search-wrap{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:0 10px;min-height:36px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.search-wrap{position:relative;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:0 10px;min-height:36px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
 .search-wrap:focus-within{border-color:rgba(96,165,250,.72);box-shadow:0 0 0 3px rgba(59,130,246,.18)}
 .search-wrap input{background:transparent;border:0;color:#fff;font-size:12px;padding:7px 0;width:260px;outline:none}
 .search-wrap input::placeholder{color:#cbd5e1}
@@ -423,23 +423,16 @@ table.elev th,table.elev td{border-right:1px solid var(--line2);border-bottom:1p
 .login-foot{display:flex;gap:8px;justify-content:flex-end}
 .login-foot #logoutBtn{margin-right:auto}
 
-/* 우측 층 레일(항상 노출) — 탭하면 그 층으로 세로 이동 */
-.floor-rail{position:fixed;right:4px;top:50%;transform:translateY(-50%);z-index:39;display:flex;flex-direction:column;gap:2px;background:rgba(15,23,42,.5);backdrop-filter:blur(5px);border:1px solid rgba(148,163,184,.25);border-radius:12px;padding:4px 3px;box-shadow:0 6px 18px rgba(15,23,42,.28)}
-.floor-rail button{width:28px;min-height:21px;border:0;background:transparent;color:#dbe3ef;font-size:10px;font-weight:800;border-radius:7px;padding:1px 0;line-height:1.05}
-.floor-rail button:active{background:rgba(255,255,255,.22)}
-.floor-rail button.cur{background:#2563eb;color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.5)}
-
-/* 바로가기(층·구역 점프) 플로팅 */
-.nav-fab{position:fixed;right:14px;bottom:16px;z-index:40;width:52px;height:52px;border-radius:50%;border:0;background:linear-gradient(180deg,#3b82f6,#2563eb);color:#fff;font-size:22px;box-shadow:0 10px 24px rgba(37,99,235,.42);display:grid;place-items:center;transition:transform .15s ease}
-.nav-fab:active{transform:scale(.92)}
-.nav-panel{position:fixed;right:14px;bottom:78px;z-index:41;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:10px 12px;width:min(300px,88vw);max-height:64vh;overflow:auto}
-.nav-panel .nav-sec{font-size:11px;font-weight:800;color:#64748b;margin:8px 2px 5px}
-.nav-panel .nav-sec:first-child{margin-top:0}
-.nav-panel .nav-chips{display:flex;flex-wrap:wrap;gap:6px}
-.nav-panel .nav-chips button{border:1px solid #cbd5e1;background:#f8fafc;border-radius:8px;padding:8px 11px;font-size:13px;font-weight:700;color:#334155;min-height:38px}
-.nav-panel .nav-chips button:active{background:#dbeafe;border-color:#2563eb}
-.nav-home{margin-top:11px;width:100%;border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:#334155}
-/* 점프 후 깜빡 강조 */
+/* 검색 자동완성·제안 드롭다운 */
+.search-suggest{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:55;background:#fff;color:#0f172a;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);max-height:54vh;overflow:auto;padding:4px}
+.search-suggest button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;background:transparent;padding:9px 10px;border-radius:8px;font-size:13px;color:#334155;cursor:pointer}
+.search-suggest button:hover,.search-suggest button.active{background:#eff6ff}
+.search-suggest button.sg-filter{font-weight:700;color:#1d4ed8;border-bottom:1px solid var(--line2);border-radius:8px 8px 0 0;margin-bottom:2px}
+.search-suggest .sg-no{font-weight:800;color:#0f172a;min-width:44px}
+.search-suggest .sg-meta{color:#64748b;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search-suggest .sg-zone{margin-left:auto;font-size:10.5px;color:#94a3b8;white-space:nowrap}
+.search-suggest .sg-empty{padding:11px;color:#94a3b8;font-size:12px}
+/* 점프 후 깜빡 강조(덕트 바로가기) */
 .nav-flash{animation:navpulse 1.3s ease}
 @keyframes navpulse{0%,100%{box-shadow:none}35%{box-shadow:inset 0 0 0 3px #f59e0b, 0 0 0 2px rgba(245,158,11,.3)}}
 
