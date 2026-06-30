@@ -56,7 +56,7 @@ button{font-family:inherit;cursor:pointer}
 .zone-tabs button[data-z="1"].active{border-color:var(--z1)}
 .zone-tabs button[data-z="2"].active{border-color:var(--z2)}
 .zone-tabs button[data-z="3"].active{border-color:var(--z3)}
-.zone-tabs button.off{opacity:.45;background:rgba(255,255,255,.04);color:#94a3b8;text-decoration:line-through}
+.zone-tabs button.off{opacity:.55;background:rgba(255,255,255,.04);color:#94a3b8}
 .zone-tabs button.off:hover{opacity:.7}
 .zone-tabs button.zt-all{background:rgba(255,255,255,.06);color:#cbd5e1;border-style:dashed}
 .zone-tabs button.zt-all.active{background:rgba(56,189,248,.18);color:#e0f2fe;border-color:#38bdf8;border-style:solid}
@@ -356,8 +356,8 @@ table.elev th,table.elev td{border-right:1px solid var(--line2);border-bottom:1p
   .tools-toggle{display:inline-flex;align-items:center;order:1}
   #presence{order:2}
   #connState{order:3}
-  .zone-tabs{order:4;flex:1 1 100%;flex-wrap:nowrap;overflow-x:auto;padding:3px 4px}
-  .zone-tabs button{flex:0 0 auto}
+  .zone-tabs{order:4;flex:1 1 100%;flex-wrap:wrap;padding:3px 4px}
+  .zone-tabs button{flex:1 1 auto;text-align:center}
   .search-wrap{order:5;flex:1 1 100%}
   .search-wrap input{width:100%}
   .spacer{display:none}

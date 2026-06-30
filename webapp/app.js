@@ -511,10 +511,10 @@
         const sw = l.key === "no_beam" ? `<span class="sw xbeam"></span>` : `<span class="sw" style="background:${l.color}"></span>`;
         return `<button class="chip ${cur === l.key ? "cur" : ""}" data-status="${l.key}">${sw}${l.label}</button>`;
       }).join("") + `</div>`;
-      // 비계 간섭이면 PH 단계(PH2/PH4) 추가 선택
+      // 비계 간섭이면 PH2/PH4를 칩 바로 아래에서 선택
       if (cur === "scaffold_interf") {
         const phv = store.note("phx:" + k);
-        body += `<div class="ed-phx"><label>비계 단계</label><span class="seg phx-seg">` +
+        body += `<div class="ed-phx"><span class="seg phx-seg">` +
           ["PH2", "PH4"].map(ph => `<button data-phx="${ph}" class="${phv === ph ? "on" : ""}">${ph}</button>`).join("") + `</span></div>`;
       }
       // 작업팀(선택) — 덕트설치·타공·횡주 누가 했는지
@@ -721,8 +721,10 @@
       const b = document.createElement("button");
       b.textContent = z; b.dataset.z = zoneIdx[z];
       b.className = on ? "active" : "off";
-      b.title = (on ? "끄기: " : "켜기: ") + z;
-      b.onclick = () => { if (enabledZones.has(z)) enabledZones.delete(z); else enabledZones.add(z); saveZones(); buildZoneTabs(); renderGrid(); };
+      const onlyThis = enabledZones.size === 1 && on;
+      b.title = onlyThis ? "전체 보기" : (z + "만 보기");
+      // 구역 탭 = 해당 구역만 보기(격리). 이미 단독이면 전체로 복귀.
+      b.onclick = () => { enabledZones = (enabledZones.size === 1 && enabledZones.has(z)) ? new Set(SEED.zones) : new Set([z]); saveZones(); buildZoneTabs(); renderGrid(); gw.scrollTo(0, 0); };
       wrap.appendChild(b);
     });
     // '전체' = 모든 구역 켜기
